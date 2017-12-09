@@ -1,0 +1,51 @@
+<div class="container">
+    <h1>Continue Deck</h1>
+    <form [formGroup]="loadDeckForm" (ngSubmit)="loadDeck(loadDeckForm.value, loadDeckForm.valid)">
+		<div>
+		    <label>Enter Deck Code</label>
+		    <input type="text" formControlName="hash">
+		    <div *ngIf="loadDeckForm.controls.hash.invalid && (loadDeckForm.controls.hash.dirty || loadDeckForm.controls.hash.touched)">
+			    <div *ngIf="loadDeckForm.controls.hash.errors.minlength || loadDeckForm.controls.hash.errors.maxlength" >
+				    <span>Input check failed: Code is 10 Characters long.</span>
+				</div>
+			</div>
+	<!-- 	    <small [hidden]="loadDeckForm.controls.hash.valid || (loadDeckForm.controls.hash.pristine && !submitted)">
+		        hash is required (10 Characters code).
+		    </small> -->
+		</div>
+
+		<div *ngIf="loadDeckStatus!==undefined">
+			<span>Result: {{loadDeckStatus}}</span>
+		</div>
+	 
+	    <button type="submit" [disabled]="submittedHash || !loadDeckForm.controls.hash.valid">Load Deck</button>
+    </form>
+
+
+
+    <h1> Create New Deck </h1>
+    <div>
+		<button [disabled]="requestSent" (click)="createDeck()">Get Deck </button> 
+
+		<div *ngIf="getDeckStatus!==undefined"> 
+			<span>Error code: {{getDeckStatus}}</span>
+		</div>
+
+	</div>
+
+</div>
+
+
+<div *ngIf="deckModel!==undefined">
+	<ul> Deck Info
+		<li>Deck Code: {{deckModel.hash}}</li>
+		<li>Draft Complete: {{deckModel.finished}}</li>
+		<li>Number of cards: {{deckModel.size}}</li>
+	</ul>
+	<button (click)="gotoDrafts(deckModel)"> Go to draft </button>
+</div>
+
+Event Log:
+<div *ngFor="let event of events">
+    <pre> {{ event | json }} </pre>
+</div>

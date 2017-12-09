@@ -1,0 +1,21 @@
+{% load static %}
+
+<head>
+  <title>YGO Arena Playground</title>
+</head>
+
+<ul>
+{% for id in random_ids %}
+    <li>
+    {{ id.id }}
+    	<ul>
+    		<li>
+    			{{id.texts.name}}
+    		</li>
+    		<li>
+    			{{id.texts.desc}}
+    		</li>
+    	</ul>
+</li>
+{% endfor %}
+</ul>

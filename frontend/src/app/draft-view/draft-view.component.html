@@ -1,0 +1,24 @@
+<div class="container">
+	<p> Deck code is {{deckCode}} ( This is used to continue the draft at a later time)</p>
+	<p> Main Deck: {{deckModel.mainDeck}} Extra Deck: {{deckModel.size - deckModel.mainDeck}}</p>
+
+	<div class="row" style="display:flex;flex-wrap: wrap;"> 
+		<div class="col-xs-4" *ngFor="let draft of drafting"  (click) = "!draftSent ? postDraft(draft.id) : true" style="display:flex; flex-direction: column;">
+			<a >
+				<img [src]="draft.imagePath">
+			</a>
+			<p><strong> {{draft.text.name}} </strong></p> 
+			<p (click) = "!draftSent ? postDraft(draft.id) : true">{{draft.text.desc}}</p>
+		</div>
+	<div>
+
+	<button *ngIf="deckFinished" (click)="download()">Download</button>
+
+	<br>
+	<div *ngFor="let draft of drafted">
+		 <p><strong>{{draft.text.name}} </strong></p> 
+		 <p>{{draft.text.desc}}</p>
+
+	</div>
+
+</div>

@@ -1,0 +1,80 @@
+{% load static %}
+<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.6/angular.min.js"></script>
+<script src="https://code.angularjs.org/1.6.6/angular-cookies.min.js"></script>
+<script
+  src="https://code.jquery.com/jquery-3.2.1.min.js"
+  integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
+  crossorigin="anonymous"></script>
+
+
+<head>
+  <title>YGO Arena Playground</title>
+</head>
+
+<div ng-app="arenaApp" ng-controller="controller">
+	<ul>
+	{% for draft in drafting %}
+	    <li>
+	    	{{ draft }}
+		</li>
+	{% endfor %}
+	</ul>
+
+    <input type="submit" value="Post" ng-click="post()">
+</div>
+<span id="penis"></span>
+
+<ul>
+{% for draft in drafted %}
+    <li>
+    {{ draft }}
+	</li>
+{% endfor %}
+</ul>
+
+
+
+<script>
+    window.csrf_token = "{{ csrf_token }}";
+    $('#penis').text(window.csrf_token);
+
+</script>
+
+<script type='text/javascript'>
+
+
+	var app = angular.module('arenaApp', ['ngCookies']);
+	app.config(['$httpProvider',function($httpProvider)
+	{
+		$httpProvider.defaults.xsrfCookieName = 'csrftoken';
+		$httpProvider.defaults.xsrfHeaderName = 'X-CSRFToken';
+	}]);
+	app.controller('controller', ['$scope', '$http', '$cookies', function($scope,$http, $cookies){
+
+
+		$http({
+		    url: "http://localhost:8000/arena/deck/7d0b761/",
+		    method: "GET"
+		});
+
+		$scope.post = function (){
+			
+			$http({
+			    url: "http://localhost:8000/arena/deck/7d0b761/",
+			    method: "POST",
+			    data: {"foo":"bar"}
+			}).then(function successCallback(response) {
+			        // this callback will be called asynchronously
+			        // when the response is available
+			        alert("good shit")
+			    }, function errorCallback(response) {
+			        // called asynchronously if an error occurs
+			        // or server returns response with an error status.
+			        alert("fuck me")
+			});
+		}
+	}]);
+
+
+
+</script>
