@@ -42,7 +42,11 @@ def deck_create(request):
 
     if request.method == 'POST':
         dm = DeckManager()
-        d = dm.createDeck()
+        bonusid = request.data["bonusid"]
+        decksizeid = request.data["decksizeid"]
+        if bonusid == None or decksizeid == None:
+            raise Http404("bad parameters")
+        d = dm.createDeck(bonusid, decksizeid)
         serializer = deckSerializer(d, context={'request': request}, many = False)
         return Response(serializer.data)
     else:

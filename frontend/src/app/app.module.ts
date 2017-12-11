@@ -26,7 +26,7 @@ const appRoutes: Routes = [
 declarations: [
     AppComponent,
     DeckFormComponent,
-    DraftViewComponent
+    DraftViewComponent,
 ],
 imports: [
     BrowserModule,

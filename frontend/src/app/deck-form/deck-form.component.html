@@ -9,9 +9,6 @@
 				    <span>Input check failed: Code is 10 Characters long.</span>
 				</div>
 			</div>
-	<!-- 	    <small [hidden]="loadDeckForm.controls.hash.valid || (loadDeckForm.controls.hash.pristine && !submitted)">
-		        hash is required (10 Characters code).
-		    </small> -->
 		</div>
 
 		<div *ngIf="loadDeckStatus!==undefined">
@@ -24,8 +21,34 @@
 
 
     <h1> Create New Deck </h1>
+    <label> Starter Cards </label>
     <div>
-		<button [disabled]="requestSent" (click)="createDeck()">Get Deck </button> 
+	    <select [(ngModel)] = "selectedBonus">
+	    	<option *ngFor = "let bonus of deckBonuses" [ngValue] ="bonus">{{bonus.name}}</option>
+	    </select>
+	</div>
+
+	<div *ngIf="selectedBonus">
+		<h4>{{selectedBonus.flavor}}</h4>
+		<p style="white-space: pre-wrap;">{{selectedBonus.desc}}</p>
+	</div>
+
+	<label> Deck Size </label>
+    <div>
+	    <select [(ngModel)] = "selectedDeckSize">
+	    	<option *ngFor = "let deckSize of deckSizes" [ngValue] ="deckSize">{{deckSize.name}}</option>
+	    </select>
+	</div>
+
+	<div *ngIf="selectedDeckSize">
+		<p style="white-space: pre-wrap;">{{selectedDeckSize.desc}}</p>
+	</div>
+	
+
+
+
+    <div *ngIf="selectedBonus && selectedDeckSize">
+		<button [disabled]="requestSent" (click)="createDeck()"> Get Deck </button> 
 
 		<div *ngIf="getDeckStatus!==undefined"> 
 			<span>Error code: {{getDeckStatus}}</span>
@@ -43,9 +66,4 @@
 		<li>Number of cards: {{deckModel.size}}</li>
 	</ul>
 	<button (click)="gotoDrafts(deckModel)"> Go to draft </button>
-</div>
-
-Event Log:
-<div *ngFor="let event of events">
-    <pre> {{ event | json }} </pre>
 </div>

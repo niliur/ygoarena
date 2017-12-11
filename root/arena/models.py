@@ -14,6 +14,12 @@ import struct
 import random
 from random import randint
 from abc import ABCMeta, abstractmethod
+import string
+
+def random_string(length):
+    pool = string.ascii_letters + string.digits
+    return ''.join(random.choice(pool) for i in range(length))
+
 
 class CFHelper(object):
 	@staticmethod
@@ -129,13 +135,12 @@ class Texts(models.Model):
 
 
 class DeckManager(models.Manager):
-	def createDeck(self, bonusid = 8, deckSizeid = 0):
+	def createDeck(self, bonusid = 99, deckSizeid = 99):
 		ba = bytearray(struct.pack("f", time.time()))
 
-		hashField = hashlib.sha224(ba).hexdigest()[0:10]
+		hashField = random_string(10)
 		while(Deck.objects.filter(hashField = hashField).count() > 0):
-			ba = bytearray(struct.pack("f", time.time()))
-			hashField = hashlib.sha224(ba).hexdigest()[0:10]
+			hashField = random_string(10)
 
 		bonus = BonusGetter.BonusFactory(bonusid)
 		mStarter = bonus.getMainStarterCards()
@@ -148,9 +153,12 @@ class DeckManager(models.Manager):
 		deck = Deck.objects.create(hashField = hashField, bonusid = bonusid, deckSizeid = deckSizeid)
 		for cardid in mStarter:
 			deck.addStarters(cardid, True)
+
+		print("cunt")
 		for cardid in eStarter:
 			deck.addStarters(cardid, False)
 
+		print("cuck")
 		return deck
 
 	def retrieveDeck(self, hashfield):
@@ -208,10 +216,10 @@ class Deck(models.Model):
 
 	def generateDraftList(self):
 
-		mainDeck, randomCard = BonusGetter.BonusFactory(0).modifyDraft(self.mainDeck, self.extraDeck)
+		mainDeck, randomCard = BonusGetter.BonusFactory(self.bonusid).modifyDraft(self.mainDeck, self.extraDeck)
 
-		for i in range(0,6):
-			pk = randomCard[i].pk;
+		for i in randomCard:
+			pk = i.pk;
 			Draft.objects.create(deck = self,text = Texts.objects.get(pk = pk), card = Datas.objects.get(pk = pk), draftnum = self.size+1, mainDeck = mainDeck)
 		draftList = self.draft_set.filter(draftnum = self.size + 1)
 		return draftList
@@ -219,7 +227,6 @@ class Deck(models.Model):
 	def serveDraft(self):
 		if self.finished == True:
 			return None
-		BonusGetter.BonusFactory(0).getMainStarterCards()
 		curDrafts = self.draft_set.filter(draftnum = self.size + 1)
 		if curDrafts.first() == None:
 			return self.generateDraftList()
@@ -307,7 +314,7 @@ class DeckSize:
 		elif deckSizeid == 2:
 			return 60
 		elif deckSizeid == 3:
-			return 10
+			return 70
 		else:
 			return 40
 
@@ -335,7 +342,8 @@ class DraftHelper(object):
 
 
 
-class Bonus(metaclass = ABCMeta):
+class Bonus:
+	__metaclass__ = ABCMeta
 	def __init__(self):
 
 
@@ -371,6 +379,9 @@ class Bonus(metaclass = ABCMeta):
 		pass
 
 class BonusGetter:
+
+
+	@staticmethod
 	def BonusFactory(bonusid):
 		if bonusid == 0:
 			return ExodiaBonus()
@@ -414,12 +425,12 @@ class DefaultBonus(Bonus):
 		if (edsize * 4 <= mdsize):
 			rcard = Datas.objects.getExtraDeckMonsters()
 			#rcard = self.get_queryset()
-			randomCard = DraftHelper.randomFromList(rcard, 6)
+			randomCard = DraftHelper.randomFromList(rcard, 8)
 			#randomCard = self.getEDM(6)
 			mainDeck = False
 
 		else:
-			randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 3) + DraftHelper.randomFromList(Datas.objects.getST(), 3)
+			randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4) + DraftHelper.randomFromList(Datas.objects.getST(), 4)
 			mainDeck = True	
 
 		return mainDeck, randomCard
@@ -464,8 +475,8 @@ class UBWBonus(DefaultBonus):
 class LightBonus(DefaultBonus):
 	@staticmethod
 	def getMainStarterCards():
-		#honest, raiden, ryko, light brigade charge
-		return [37742478, 77558536,21502796, 94886282]
+		#honest, raiden, ryko, light, white dragon wyvernbuster
+		return [37742478, 77558536,21502796, 99234526]
 
 
 class DegenerateBonus(DefaultBonus):
@@ -497,12 +508,13 @@ class TrapBonus(DefaultBonus):
 		if (edsize * 4 <= mdsize):
 			rcard = Datas.objects.getExtraDeckMonsters()
 			#rcard = self.get_queryset()
-			randomCard = DraftHelper.randomFromList(rcard, 6)
+			randomCard = DraftHelper.randomFromList(rcard, 8)
 			#randomCard = self.getEDM(6)
 			mainDeck = False
 
 		else:
-			randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 3) + DraftHelper.randomFromList(Datas.objects.getT(), 3)
+			randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4) + DraftHelper.randomFromList(Datas.objects.getT(), 4)
+			print("fuck you")
 			mainDeck = True	
 
 		return mainDeck, randomCard
@@ -515,7 +527,7 @@ class SanganBonus(DefaultBonus):
 
 	@staticmethod
 	def getExtraStarterCards():
-		#Powertool dragon
+		#Alucard, wind up zenmaines
 		return [75367227, 78156759]
 
 class LawnmowBonus(DefaultBonus):

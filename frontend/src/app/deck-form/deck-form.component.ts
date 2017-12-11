@@ -1,5 +1,5 @@
 import { Component, OnInit, ViewEncapsulation } from '@angular/core';
-import { Http, Response } from '@angular/http';
+import { Http, Response, RequestOptions, Headers } from '@angular/http';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
 import {Router} from '@angular/router';
 import 'rxjs/add/operator/toPromise';
@@ -7,6 +7,7 @@ import 'rxjs/add/operator/toPromise';
 import {AppSettings} from '../app-settings';
 
 import { Deck } from '../deck';
+import {DeckBonusSelector, DeckBonus, DeckSize, DeckSizeSelector} from '../deck-options';
 
 @Component({
 	selector: 'app-deck-form',
@@ -29,6 +30,12 @@ export class DeckFormComponent implements OnInit {
 	private createDeckSuccessful: boolean = false;
 	private loadDeckStatus: string;
 	private getDeckStatus: string;
+
+	private deckBonuses: DeckBonus[];
+	private selectedBonus: DeckBonus;
+
+	private deckSizes: DeckSize[];
+	private selectedDeckSize : DeckSize;
 
 	constructor(private http : Http, private db: FormBuilder, private router: Router){	}
 
@@ -60,8 +67,14 @@ export class DeckFormComponent implements OnInit {
 
 	private createDeck(){
 		this.requestSent = true;
+		var obj = {};
+		obj['bonusid'] = this.selectedBonus.bonusid;
+		obj['decksizeid'] = this.selectedDeckSize.decksizeid;
+		var data = JSON.stringify(obj);
+		var headers = new Headers({ 'Content-Type': 'application/json' });
+		var options = new RequestOptions({ headers: headers });
 	    this.http
-	    	.post(this.createurl,{},).toPromise()
+	    	.post(this.createurl,data, options).toPromise()
 	    	.then(response => {
 	    	console.log(response.status);
 	    	this.requestSent = false;
@@ -78,6 +91,13 @@ export class DeckFormComponent implements OnInit {
 		this.loadDeckForm = this.db.group({
 			hash: ['', [<any>Validators.required, <any>Validators.minLength(10), <any>Validators.maxLength(10)]]
 		});
+
+		var decksl = new DeckBonusSelector();
+		this.deckBonuses = decksl.getBonuses();
+
+		var decksz = new DeckSizeSelector();
+		this.deckSizes = decksz.getDeckSizes();
+		
 
 		this.subcribeToFormChanges();
 	}
