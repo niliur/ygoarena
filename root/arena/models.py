@@ -491,7 +491,7 @@ class TributeBonus(DefaultBonus):
 	@staticmethod
 	def getMainStarterCards():
 		#5 and over club: 1 x Tribute burial, 1 x Stormforth, 1 x Dark Squire, Double summon
-		return [80230510, 79844764,59463312, 4206964]
+		return [80230510, 79844764,59463312, 43422537]
 
 class TrapBonus(DefaultBonus):
 
