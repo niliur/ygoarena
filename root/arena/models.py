@@ -32,6 +32,20 @@ class CFHelper(object):
 		return not boolean
 
 
+	@staticmethod
+	def filterCardByHexList(code, hvalList):
+
+		ret = True
+		for hval in hvalList:
+			if((code & hval[0])):
+				ret = ret and hval[1]
+			else:
+				ret = ret and (not hval[1])
+
+		return ret
+	
+
+
 
 class CardDataManager(models.Manager):
 
@@ -39,23 +53,21 @@ class CardDataManager(models.Manager):
 	def getMainDeckMonsters(self):
 		cards = self.get_queryset()
 
+
+		hvalList = [(0x1, True), (0x40, False), (0x80, False), (0x2000, False), (0x4000, False), (0x800000, False)]
+
 		for card in cards:
-			if (CFHelper.filterCardByHex(card.type, 0x1, True) 
-					and CFHelper.filterCardByHex(card.type, 0x40, False) 
-					and CFHelper.filterCardByHex(card.type, 0x80, False) 
-					and CFHelper.filterCardByHex(card.type, 0x2000, False)
-					and CFHelper.filterCardByHex(card.type, 0x800000, False)
-					and CFHelper.filterCardByHex(card.type, 0x4000, False) ):
+			if (CFHelper.filterCardByHexList(card.type,hvalList)):
 				yield card
 
 	def getST(self):
 		cards = self.get_queryset()
 
-		for card in cards:
+		hvalList = [(0x2, True), (0x80, False)]
+		hvalList2 = [(0x4, True)]
 
-			if((CFHelper.filterCardByHex(card.type, 0x2, True)
-					and CFHelper.filterCardByHex(card.type, 0x80, False))
-					or CFHelper.filterCardByHex(card.type, 0x4, True)):
+		for card in cards:
+			if(CFHelper.filterCardByHexList(card.type, hvalList) or CFHelper.filterCardByHexList(card.type, hvalList2)):
 				yield card
 
 	def getT(self):
@@ -69,11 +81,14 @@ class CardDataManager(models.Manager):
 	def getExtraDeckMonsters(self):
 		cards = self.get_queryset()
 
+		hvalList = [(0x800000, True)]
+		hvalList2 = [(0x2000, True)]
+
 		for card in cards:
-			if(CFHelper.filterCardByHex(card.type, 0x800000, True)
+			if(CFHelper.filterCardByHexList(card.type, hvalList)
 					# Dunno if I should get fusions
 					#and CFHelper.filterCardByHex(card.type, 0x40, True)
-					or CFHelper.filterCardByHex(card.type, 0x2000, True)):
+					or CFHelper.filterCardByHexList(card.type, hvalList2)):
 				yield card
 
 
@@ -146,19 +161,18 @@ class DeckManager(models.Manager):
 		mStarter = bonus.getMainStarterCards()
 		eStarter = bonus.getExtraStarterCards()
 		
-		dsid = bonus.getDeckSizeid()
-		if dsid is not None:
-			deckSizeid = dsid
+		mStarter = DraftController.getMainStarterCards(bonusid, 0)
+		eStarter = DraftController.getExtraStarterCards(bonusid, 0)
+
+		deckSizeid = DraftController.getDeckSize(bonusid, 0, deckSizeid)
 
 		deck = Deck.objects.create(hashField = hashField, bonusid = bonusid, deckSizeid = deckSizeid)
 		for cardid in mStarter:
 			deck.addStarters(cardid, True)
 
-		print("cunt")
 		for cardid in eStarter:
 			deck.addStarters(cardid, False)
 
-		print("cuck")
 		return deck
 
 	def retrieveDeck(self, hashfield):
@@ -179,47 +193,20 @@ class Deck(models.Model):
 	size = models.IntegerField(default = 0)
 	deckSizeid = models.IntegerField(default = 0)
 	bonusid = models.IntegerField(default = 0)
+	characterid = models.IntegerField(default = 0)
 
 	objects = DeckManager()
 
-	def randomFromList(self, querylist, num):
-		rcard = list(querylist)
-
-		count = len(rcard)
-
-		randc = [randint(0, count-1) for x in range(num)]
-
-		randomCard = []
-		for x in randc:
-			randomCard.append(rcard[x])
-			#[rcard[x] for x in randc]
-		return randomCard
-
-	def getMDM(self, count):
-		#rcard = Datas.objects.exclude(type=16401)
-		rcard = Datas.objects.getMainDeckMonsters()
-		return self.randomFromList(rcard, count)
-		
-
-	def getSandT(self, count):
-	#rcard = Datas.objects.exclude(type=16401)
-		rcard = Datas.objects.getST()
-
-		return self.randomFromList(rcard, count)
-
-	def getEDM(self, count):
-		rcard = Datas.objects.getExtraDeckMonsters()
-		return self.randomFromList(rcard, count)
-
-	
 
 
 	def generateDraftList(self):
 
-		mainDeck, randomCard = BonusGetter.BonusFactory(self.bonusid).modifyDraft(self.mainDeck, self.extraDeck)
+
+		mainDeck, randomCard = DraftController.generateDraftList(self.bonusid, self.characterid, self.mainDeck, self.extraDeck)
 
 		for i in randomCard:
 			pk = i.pk;
+			print(pk)
 			Draft.objects.create(deck = self,text = Texts.objects.get(pk = pk), card = Datas.objects.get(pk = pk), draftnum = self.size+1, mainDeck = mainDeck)
 		draftList = self.draft_set.filter(draftnum = self.size + 1)
 		return draftList
@@ -302,6 +289,89 @@ class Draft(models.Model):
 	def __str__(self):
 		return str(self.card.id)
 
+#### Draft Controller ####
+'''
+This thing manages the different draft effects and figures out which ones override which
+'''
+
+class DraftController:
+	@staticmethod
+	def getDeckSize(bonusid, characterid, decksizeid):
+		dp = BonusGetter.BonusFactory(bonusid).deckSizePriority
+		dp2 = CharacterGetter.CharacterFactory(characterid).deckSizePriority
+		if(dp == -1 and dp2 == -1):
+			return DeckSize.Factory(decksizeid)
+		else:
+			if(dp > dp2):
+				return DeckSize.Factory(BonusGetter.BonusFactory(bonusid).getDeckSizeid())
+			elif(dp < dp2):
+				return DeckSize.Factory(CharacterGetter.CharacterFactory(characterid).getDeckSizeid())
+			else:
+				raise ValueError("DeckSize somehow has equal priority????")
+
+	@staticmethod
+	def getMainStarterCards(bonusid, characterid):
+		return BonusGetter.BonusFactory(bonusid).getMainStarterCards() + CharacterGetter.CharacterFactory(characterid).getMainStarterCards()
+
+
+	@staticmethod
+	def getExtraStarterCards(bonusid, characterid):
+		return BonusGetter.BonusFactory(bonusid).getExtraStarterCards() + CharacterGetter.CharacterFactory(characterid).getExtraStarterCards()
+
+	@staticmethod
+	def generateDraftList(bonusid, characterid, mainDeckSize, extraDeckSize):
+		bonus = BonusGetter.BonusFactory(bonusid)
+		character = CharacterGetter.CharacterFactory(characterid)
+
+
+
+		if(bonus.chooseCardPriority > character.chooseCardPriority):
+			mainDeck = bonus.modifyDraft(mainDeckSize, extraDeckSize)
+		elif(bonus.chooseCardPriority < character.chooseCardPriority):
+			mainDeck = character.modifyDraft(mainDeckSize, extraDeckSize)
+		else:
+			# Defaults to character
+			mainDeck = character.modifyDraft(mainDeckSize, extraDeckSize)
+
+		randomCard = []
+
+		if mainDeck:
+			if(bonus.chooseMDMPriority > character.chooseMDMPriority):
+				randomCard += bonus.modifyMDMCards()
+			elif(bonus.chooseMDMPriority < character.chooseMDMPriority):
+				randomCard += character.modifyMDMCards()
+			else:
+				# Defaults to character
+				randomCard += character.modifyMDMCards()
+
+			if(bonus.chooseSTPriority > character.chooseSTPriority):
+				randomCard += bonus.modifySTCards()
+			elif(bonus.chooseSTPriority < character.chooseSTPriority):
+				randomCard += character.modifySTCards()
+			else:
+				# Defaults to character
+				randomCard += character.modifySTCards()
+
+		else:
+			if(bonus.chooseEDMPriority > character.chooseEDMPriority):
+				randomCard += bonus.modifyEDMCards()
+			elif(bonus.chooseEDMPriority < character.chooseEDMPriority):
+				randomCard += character.modifyEDMCards()
+			else:
+				# Defaults to character
+				randomCard += character.modifyEDMCards()
+
+
+
+		print(randomCard)
+		return mainDeck, randomCard
+
+
+
+
+
+
+
 #### DECK SIZE OPTIONS ####
 
 class DeckSize:
@@ -361,8 +431,48 @@ class Bonus:
 
 	@property
 	@abstractmethod
-	def bonusID(self):
+	def chooseCardPriority(self):
 		pass
+
+
+	@property
+	@abstractmethod
+	def chooseMDMPriority(self):
+		pass
+
+
+	@property
+	@abstractmethod
+	def chooseSTPriority(self):
+		pass
+
+	@property
+	@abstractmethod
+	def chooseEDMPriority(self):
+		pass
+
+	@property
+	@abstractmethod
+	def deckSizePriority(self):
+		pass
+
+
+
+	@staticmethod
+	@abstractmethod
+	def modifyMDMCards():
+		pass
+
+	@staticmethod
+	@abstractmethod
+	def modifySTCards():
+		pass
+		
+	@staticmethod
+	@abstractmethod
+	def modifyEDMCards():
+		pass
+
 
 	@staticmethod
 	@abstractmethod
@@ -407,7 +517,11 @@ class BonusGetter:
 class DefaultBonus(Bonus):
 	nameString = "Obliterate!"
 	descString = "You get 5 fucking pieces of exodia"
-	bonusID = 0
+	chooseCardPriority = -1
+	chooseEDMPriority = -1
+	chooseMDMPriority = -1
+	chooseSTPriority = -1
+	deckSizePriority = -1
 
 	@staticmethod
 	def getMainStarterCards():
@@ -418,22 +532,38 @@ class DefaultBonus(Bonus):
 	def getExtraStarterCards():
 		return []
 
+
+	#1 to 4 ratio of extra to monster
 	@staticmethod	
 	def modifyDraft(mdsize, edsize):
 
 
 		if (edsize * 4 <= mdsize):
-			rcard = Datas.objects.getExtraDeckMonsters()
-			#rcard = self.get_queryset()
-			randomCard = DraftHelper.randomFromList(rcard, 8)
-			#randomCard = self.getEDM(6)
-			mainDeck = False
+			return False
 
 		else:
-			randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4) + DraftHelper.randomFromList(Datas.objects.getST(), 4)
-			mainDeck = True	
+			return True
 
-		return mainDeck, randomCard
+	@staticmethod
+	def modifyEDMCards():
+		rcard = Datas.objects.getExtraDeckMonsters()
+		#rcard = self.get_queryset()
+		randomCard = DraftHelper.randomFromList(rcard, 8)
+		#randomCard = self.getEDM(6)
+		
+		return randomCard
+
+	@staticmethod
+	def modifyMDMCards():
+		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4)
+		return randomCard
+
+	@staticmethod
+	def modifySTCards():
+		randomCard = DraftHelper.randomFromList(Datas.objects.getST(), 4)
+		return randomCard
+
+
 
 	@staticmethod
 	def getDeckSizeid():
@@ -495,29 +625,17 @@ class TributeBonus(DefaultBonus):
 
 class TrapBonus(DefaultBonus):
 
+	chooseSTPriority = 1
+
 	@staticmethod
 	def getMainStarterCards():
 		#Powerful rebirth, quaking mirror force
 		return [84298614, 40838625]
 
-
-	@staticmethod	
-	def modifyDraft(mdsize, edsize):
-
-
-		if (edsize * 4 <= mdsize):
-			rcard = Datas.objects.getExtraDeckMonsters()
-			#rcard = self.get_queryset()
-			randomCard = DraftHelper.randomFromList(rcard, 8)
-			#randomCard = self.getEDM(6)
-			mainDeck = False
-
-		else:
-			randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4) + DraftHelper.randomFromList(Datas.objects.getT(), 4)
-			print("fuck you")
-			mainDeck = True	
-
-		return mainDeck, randomCard
+	@staticmethod
+	def modifySTCards():
+		randomCard = DraftHelper.randomFromList(Datas.objects.getT(), 4)
+		return randomCard
 
 class SanganBonus(DefaultBonus):
 	@staticmethod
@@ -531,6 +649,8 @@ class SanganBonus(DefaultBonus):
 		return [75367227, 78156759]
 
 class LawnmowBonus(DefaultBonus):
+
+	deckSizePriority = 0
 	@staticmethod
 	def getMainStarterCards():
 		#3x lawnmowing, imp sabres, plaguespreader, electroturtle, shadoll beast
@@ -539,3 +659,124 @@ class LawnmowBonus(DefaultBonus):
 	@staticmethod
 	def getDeckSizeid():
 		return 3
+
+
+
+### Character perks #####
+
+
+
+class Character:
+	__metaclass__ = ABCMeta
+	def __init__(self):
+
+
+		pass
+
+	@property
+	@abstractmethod
+	def nameString(self):
+		pass
+
+	@property
+	@abstractmethod
+	def descString(self):
+		pass
+
+	@staticmethod
+	@abstractmethod
+	def modifyMDMCards():
+		pass
+
+	@staticmethod
+	@abstractmethod
+	def modifySTCards():
+		pass
+		
+	@staticmethod
+	@abstractmethod
+	def modifyEDMCards():
+		pass
+
+	@staticmethod
+	@abstractmethod
+	def getMainStarterCards():
+		pass
+
+	@staticmethod
+	@abstractmethod
+	def getExtraStarterCards():
+		pass
+
+	@abstractmethod
+	def modifyDraft():
+		pass
+
+class CharacterGetter:
+	@staticmethod
+	def CharacterFactory(characterid):
+		if characterid == 0:
+			return KaibaCharacter()
+		else:
+			return DefaultCharacter()
+
+class DefaultCharacter(Character):
+	nameString = "Yugi"
+	descString = "Yung thug"
+
+	chooseCardPriority = -1
+	chooseEDMPriority = -1
+	chooseMDMPriority = -1
+	chooseSTPriority = -1
+	deckSizePriority = -1
+
+	@staticmethod
+	def getMainStarterCards():
+		return []
+
+	@staticmethod
+	def getExtraStarterCards():
+		return []
+
+
+	@staticmethod
+	def modifyEDMCards():
+		rcard = Datas.objects.getExtraDeckMonsters()
+		#rcard = self.get_queryset()
+		randomCard = DraftHelper.randomFromList(rcard, 8)
+		#randomCard = self.getEDM(6)
+		
+		return randomCard
+
+	@staticmethod
+	def modifyMDMCards():
+		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4)
+		return randomCard
+
+	@staticmethod
+	def modifySTCards():
+		randomCard = DraftHelper.randomFromList(Datas.objects.getST(), 4)
+		return randomCard
+
+	#1 to 4 ratio of extra to monster
+	@staticmethod	
+	def modifyDraft(mdsize, edsize):
+
+
+		if (edsize * 4 <= mdsize):
+			return False
+
+		else:
+			return True
+
+	@staticmethod
+	def getDeckSizeid():
+		return None
+
+class KaibaCharacter(DefaultCharacter):
+
+	#Nigga in battle city
+	@staticmethod
+	def getMainStarterCards():
+		#Soul Exchange, obelisk the tormentor
+		return [68005187, 10000000, 98045062]
