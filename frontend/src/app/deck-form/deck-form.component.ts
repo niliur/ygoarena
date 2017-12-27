@@ -7,7 +7,7 @@ import 'rxjs/add/operator/toPromise';
 import {AppSettings} from '../app-settings';
 
 import { Deck } from '../deck';
-import {DeckBonusSelector, DeckBonus, DeckSize, DeckSizeSelector} from '../deck-options';
+import {DeckBonusSelector, DeckBonus, DeckCharacterSelector, DeckCharacter, DeckSize, DeckSizeSelector} from '../deck-options';
 
 @Component({
 	selector: 'app-deck-form',
@@ -33,6 +33,8 @@ export class DeckFormComponent implements OnInit {
 
 	private deckBonuses: DeckBonus[];
 	private selectedBonus: DeckBonus;
+	private deckCharacters: DeckCharacter[];
+	private selectedCharacter: DeckCharacter;
 
 	private deckSizes: DeckSize[];
 	private selectedDeckSize : DeckSize;
@@ -70,6 +72,7 @@ export class DeckFormComponent implements OnInit {
 		var obj = {};
 		obj['bonusid'] = this.selectedBonus.bonusid;
 		obj['decksizeid'] = this.selectedDeckSize.decksizeid;
+		obj['characterid'] = this.selectedCharacter.characterid;
 		var data = JSON.stringify(obj);
 		var headers = new Headers({ 'Content-Type': 'application/json' });
 		var options = new RequestOptions({ headers: headers });
@@ -97,6 +100,9 @@ export class DeckFormComponent implements OnInit {
 
 		var decksz = new DeckSizeSelector();
 		this.deckSizes = decksz.getDeckSizes();
+
+		var decksb = new DeckCharacterSelector();
+		this.deckCharacters = decksb.getCharacters();
 		
 
 		this.subcribeToFormChanges();

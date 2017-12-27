@@ -21,7 +21,7 @@
 
 
     <h1> Create New Deck </h1>
-    <label> Starter Cards </label>
+    <label> Starting Hand </label>
     <div>
 	    <select [(ngModel)] = "selectedBonus">
 	    	<option *ngFor = "let bonus of deckBonuses" [ngValue] ="bonus">{{bonus.name}}</option>
@@ -31,6 +31,19 @@
 	<div *ngIf="selectedBonus">
 		<h4>{{selectedBonus.flavor}}</h4>
 		<p style="white-space: pre-wrap;">{{selectedBonus.desc}}</p>
+	</div>
+
+
+    <label> Starting Character </label>
+	<div>
+	    <select [(ngModel)] = "selectedCharacter">
+	    	<option *ngFor = "let character of deckCharacters" [ngValue] ="character">{{character.name}}</option>
+	    </select>
+	</div>
+
+	<div *ngIf="selectedCharacter">
+		<h4>{{selectedCharacter.flavor}}</h4>
+		<p style="white-space: pre-wrap;">{{selectedCharacter.desc}}</p>
 	</div>
 
 	<label> Deck Size </label>
@@ -47,7 +60,7 @@
 
 
 
-    <div *ngIf="selectedBonus && selectedDeckSize">
+    <div *ngIf="selectedBonus && selectedDeckSize && selectedCharacter">
 		<button [disabled]="requestSent" (click)="createDeck()"> Get Deck </button> 
 
 		<div *ngIf="getDeckStatus!==undefined"> 

@@ -15,6 +15,7 @@ import random
 from random import randint
 from abc import ABCMeta, abstractmethod
 import string
+import inspect
 
 def random_string(length):
     pool = string.ascii_letters + string.digits
@@ -37,7 +38,8 @@ class CFHelper(object):
 
 		ret = True
 		for hval in hvalList:
-			if((code & hval[0])):
+			target = getattr(code, hval[2])
+			if((target & hval[0])):
 				ret = ret and hval[1]
 			else:
 				ret = ret and (not hval[1])
@@ -49,25 +51,55 @@ class CFHelper(object):
 
 class CardDataManager(models.Manager):
 
+	def getCardsFromList(self, list):
+		cards = self.get_queryset()
+		for card in cards:
+			for cardid in list:
+				if card.id == cardid:
+					yield card
 	
+
+	def getMDMCustomFilter(self, listadd):
+		cards = self.get_queryset()
+
+
+		hvalList = [(0x1, True, 'type'), (0x40, False, 'type'), (0x80, False, 'type'), (0x2000, False, 'type'), (0x4000, False, 'type'), (0x800000, False, 'type')]
+		hvalList = hvalList + listadd
+
+		for card in cards:
+			if(CFHelper.filterCardByHexList(card, hvalList)):
+				yield card
+
+	def getEDMCustomFilter(self, listadd):
+		cards = self.get_queryset()
+
+		hvalList = [(0x800000, True, 'type')]
+		hvalList2 = [(0x2000, True, 'type')]
+		hvalList = hvalList + listadd
+		hvalList2 = hvalList2 + listadd
+
+		for card in cards:
+			if((CFHelper.filterCardByHexList(card, hvalList)
+					or CFHelper.filterCardByHexList(card, hvalList2))):
+				yield card
 	def getMainDeckMonsters(self):
 		cards = self.get_queryset()
 
 
-		hvalList = [(0x1, True), (0x40, False), (0x80, False), (0x2000, False), (0x4000, False), (0x800000, False)]
+		hvalList = [(0x1, True, 'type'), (0x40, False, 'type'), (0x80, False, 'type'), (0x2000, False, 'type'), (0x4000, False, 'type'), (0x800000, False, 'type')]
 
 		for card in cards:
-			if (CFHelper.filterCardByHexList(card.type,hvalList)):
+			if (CFHelper.filterCardByHexList(card,hvalList)):
 				yield card
 
 	def getST(self):
 		cards = self.get_queryset()
 
-		hvalList = [(0x2, True), (0x80, False)]
-		hvalList2 = [(0x4, True)]
+		hvalList = [(0x2, True, 'type'), (0x80, False, 'type')]
+		hvalList2 = [(0x4, True, 'type')]
 
 		for card in cards:
-			if(CFHelper.filterCardByHexList(card.type, hvalList) or CFHelper.filterCardByHexList(card.type, hvalList2)):
+			if(CFHelper.filterCardByHexList(card, hvalList) or CFHelper.filterCardByHexList(card, hvalList2)):
 				yield card
 
 	def getT(self):
@@ -81,14 +113,14 @@ class CardDataManager(models.Manager):
 	def getExtraDeckMonsters(self):
 		cards = self.get_queryset()
 
-		hvalList = [(0x800000, True)]
-		hvalList2 = [(0x2000, True)]
+		hvalList = [(0x800000, True, 'type')]
+		hvalList2 = [(0x2000, True, 'type')]
 
 		for card in cards:
-			if(CFHelper.filterCardByHexList(card.type, hvalList)
+			if(CFHelper.filterCardByHexList(card, hvalList)
 					# Dunno if I should get fusions
 					#and CFHelper.filterCardByHex(card.type, 0x40, True)
-					or CFHelper.filterCardByHexList(card.type, hvalList2)):
+					or CFHelper.filterCardByHexList(card, hvalList2)):
 				yield card
 
 
@@ -150,7 +182,7 @@ class Texts(models.Model):
 
 
 class DeckManager(models.Manager):
-	def createDeck(self, bonusid = 99, deckSizeid = 99):
+	def createDeck(self, bonusid = 99,characterid = 99, deckSizeid = 99):
 		ba = bytearray(struct.pack("f", time.time()))
 
 		hashField = random_string(10)
@@ -158,15 +190,16 @@ class DeckManager(models.Manager):
 			hashField = random_string(10)
 
 		bonus = BonusGetter.BonusFactory(bonusid)
-		mStarter = bonus.getMainStarterCards()
-		eStarter = bonus.getExtraStarterCards()
+		character = CharacterGetter.CharacterFactory(characterid)
+		mStarter = bonus.getMainStarterCards() + character.getMainStarterCards()
+		eStarter = bonus.getExtraStarterCards() + character.getExtraStarterCards()
 		
-		mStarter = DraftController.getMainStarterCards(bonusid, 0)
-		eStarter = DraftController.getExtraStarterCards(bonusid, 0)
+		mStarter = DraftController.getMainStarterCards(bonusid, characterid)
+		eStarter = DraftController.getExtraStarterCards(bonusid, characterid)
 
-		deckSizeid = DraftController.getDeckSize(bonusid, 0, deckSizeid)
+		deckSizeid = DraftController.getDeckSize(bonusid, characterid, deckSizeid)
 
-		deck = Deck.objects.create(hashField = hashField, bonusid = bonusid, deckSizeid = deckSizeid)
+		deck = Deck.objects.create(hashField = hashField, bonusid = bonusid, characterid = characterid, deckSizeid = deckSizeid)
 		for cardid in mStarter:
 			deck.addStarters(cardid, True)
 
@@ -191,9 +224,9 @@ class Deck(models.Model):
 	mainDeck = models.IntegerField(default = 0)
 	extraDeck = models.IntegerField(default = 0)
 	size = models.IntegerField(default = 0)
-	deckSizeid = models.IntegerField(default = 0)
-	bonusid = models.IntegerField(default = 0)
-	characterid = models.IntegerField(default = 0)
+	deckSizeid = models.IntegerField(default = 99)
+	bonusid = models.IntegerField(default = 99)
+	characterid = models.IntegerField(default = 99)
 
 	objects = DeckManager()
 
@@ -201,12 +234,13 @@ class Deck(models.Model):
 
 	def generateDraftList(self):
 
-
 		mainDeck, randomCard = DraftController.generateDraftList(self.bonusid, self.characterid, self.mainDeck, self.extraDeck)
 
 		for i in randomCard:
-			pk = i.pk;
-			print(pk)
+			if isinstance(i, int):
+				pk = i
+			else:
+				pk = i.pk;
 			Draft.objects.create(deck = self,text = Texts.objects.get(pk = pk), card = Datas.objects.get(pk = pk), draftnum = self.size+1, mainDeck = mainDeck)
 		draftList = self.draft_set.filter(draftnum = self.size + 1)
 		return draftList
@@ -299,13 +333,17 @@ class DraftController:
 	def getDeckSize(bonusid, characterid, decksizeid):
 		dp = BonusGetter.BonusFactory(bonusid).deckSizePriority
 		dp2 = CharacterGetter.CharacterFactory(characterid).deckSizePriority
+		print(dp)
+		print(dp2)
+		print(CharacterGetter.CharacterFactory(characterid).getDeckSizeid())
+		print("decksizes")
 		if(dp == -1 and dp2 == -1):
 			return DeckSize.Factory(decksizeid)
 		else:
 			if(dp > dp2):
-				return DeckSize.Factory(BonusGetter.BonusFactory(bonusid).getDeckSizeid())
+				return BonusGetter.BonusFactory(bonusid).getDeckSizeid()
 			elif(dp < dp2):
-				return DeckSize.Factory(CharacterGetter.CharacterFactory(characterid).getDeckSizeid())
+				return CharacterGetter.CharacterFactory(characterid).getDeckSizeid()
 			else:
 				raise ValueError("DeckSize somehow has equal priority????")
 
@@ -352,6 +390,8 @@ class DraftController:
 				# Defaults to character
 				randomCard += character.modifySTCards()
 
+			randomCard += character.addToMDMCards() + character.addToSTCards()
+
 		else:
 			if(bonus.chooseEDMPriority > character.chooseEDMPriority):
 				randomCard += bonus.modifyEDMCards()
@@ -360,6 +400,8 @@ class DraftController:
 			else:
 				# Defaults to character
 				randomCard += character.modifyEDMCards()
+
+			randomCard += character.addToEDMCards()
 
 
 
@@ -385,6 +427,8 @@ class DeckSize:
 			return 60
 		elif deckSizeid == 3:
 			return 70
+		elif deckSizeid == 4:
+			return 30
 		else:
 			return 40
 
@@ -397,19 +441,37 @@ class DeckSize:
 class DraftHelper(object):
 
 	@staticmethod
-	def randomFromList(querylist, num):
+	def randomFromList(querylist, num, lmb=0):
 		rcard = list(querylist)
 
 		count = len(rcard)
 
-		randc = [randint(0, count-1) for x in range(num)]
 
 		randomCard = []
-		for x in randc:
-			randomCard.append(rcard[x])
+
+		dolmb = inspect.isfunction(lmb)
+
+		rands = []
+
+		while len(randomCard) < num:
+
+			rand = randint(0, count-1)
+			while(rand in rands):
+				rand = randint(0, count - 1)
+
+			if dolmb:
+				if(lmb(rcard[rand])):
+					randomCard.append(rcard[rand])
+					print(rcard[rand])
+					rands.append(rand)
+				else:
+					pass
+			else:
+				randomCard.append(rcard[rand])
+				rands.append(rand)
+
 
 		return randomCard
-
 
 
 class Bonus:
@@ -650,7 +712,7 @@ class SanganBonus(DefaultBonus):
 
 class LawnmowBonus(DefaultBonus):
 
-	deckSizePriority = 0
+	deckSizePriority = 1
 	@staticmethod
 	def getMainStarterCards():
 		#3x lawnmowing, imp sabres, plaguespreader, electroturtle, shadoll beast
@@ -716,7 +778,31 @@ class CharacterGetter:
 	@staticmethod
 	def CharacterFactory(characterid):
 		if characterid == 0:
-			return KaibaCharacter()
+			return BCKaibaCharacter()
+
+		elif characterid == 1:
+			return OldKaibaCharacter()
+
+		elif characterid == 2:
+			return JoeyCharacter()
+
+		elif characterid == 3:
+			return YoungYugiCharacter()
+
+		elif characterid == 4:
+			return JadenCharacter()
+
+		elif characterid == 5:
+			return OldYugiCharacter()
+
+		elif characterid == 6:
+			return YumaCharacter()
+
+		elif characterid == 7:
+			return MakoCharacter()
+
+		elif characterid == 8:
+			return AkiCharacter()
 		else:
 			return DefaultCharacter()
 
@@ -748,6 +834,7 @@ class DefaultCharacter(Character):
 		
 		return randomCard
 
+
 	@staticmethod
 	def modifyMDMCards():
 		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4)
@@ -757,6 +844,20 @@ class DefaultCharacter(Character):
 	def modifySTCards():
 		randomCard = DraftHelper.randomFromList(Datas.objects.getST(), 4)
 		return randomCard
+
+	@staticmethod
+	def addToMDMCards():
+		return []
+
+	@staticmethod
+	def addToSTCards():
+		return []
+
+	@staticmethod
+	def addToEDMCards():
+		return []
+
+
 
 	#1 to 4 ratio of extra to monster
 	@staticmethod	
@@ -773,10 +874,198 @@ class DefaultCharacter(Character):
 	def getDeckSizeid():
 		return None
 
-class KaibaCharacter(DefaultCharacter):
+class BCKaibaCharacter(DefaultCharacter):
 
 	#Nigga in battle city
 	@staticmethod
 	def getMainStarterCards():
-		#Soul Exchange, obelisk the tormentor
+		#Soul Exchange, obelisk the tormentor, enemy controller
 		return [68005187, 10000000, 98045062]
+
+
+class OldKaibaCharacter(DefaultCharacter):	
+
+	@staticmethod
+	def addToMDMCards():
+		# Always able to draft blueeyes
+		return [89631139]
+
+class JoeyCharacter(DefaultCharacter):
+	chooseMDMPriority = 1
+	@staticmethod
+	def getMainStarterCards():
+
+		#REBD, heart of the underdog, Ancient rules
+		return [74677422,35762283,10667321]
+
+		#During the draft, all normal monsters have > 1500 attack or > 1500 def
+	@staticmethod
+	def modifyMDMCards():
+
+		normal = lambda x: (x.type & 0x11 != 0x11) or (x.atk > 1500) or (x.def_field > 1500)
+
+
+		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4, normal)
+		return randomCard
+
+class YoungYugiCharacter(DefaultCharacter):
+
+	deckSizePriority = 2
+
+	@staticmethod
+	def getMainStarterCards():
+
+		#Monster Reborn, Horn of heaven
+		return [83764718,98069388]
+
+	@staticmethod
+	def getDeckSizeid():
+		return 4
+
+class JadenCharacter(DefaultCharacter):
+	chooseEDMPriority = 0
+	@staticmethod
+	def getMainStarterCards():
+
+		#starting a hero lives, bubbleman, clayman, shadow mist:
+		return [8949584,79979666, 84327329, 50720316]
+
+	@staticmethod
+	def addToSTCards():
+		#adds a fucking mask change
+		return [21143940]
+
+	@staticmethod
+	def addToEDMCards():
+		#adds a fucking mask change 2
+		return[93600443]
+
+	@staticmethod
+	def modifyEDMCards():
+
+		#Chance to draft masked heroes
+
+		normal = lambda x: (x.setcode & 0xA008 == 0xA008)
+
+
+		randomCard1 = DraftHelper.randomFromList(Datas.objects.getExtraDeckMonsters(), 5)
+		randomCard2 = DraftHelper.randomFromList(Datas.objects.getCardsFromList([89870349,62624486, 59642500, 58481572, 58147549, 50608164, 29095552, 22093873, 10920352]), 3)
+		randomCard = randomCard1 + randomCard2
+		return randomCard
+
+class OldYugiCharacter(DefaultCharacter):
+	chooseMDMPriority = 0
+	chooseEDMPriority = 0
+
+	@staticmethod
+	def getMainStarterCards():
+
+		#starting eternal soul, dark magician, wonder wand
+		return [48680970,46986420, 67775894]
+
+
+
+	# 15% chance for a monster to be a spellcaster
+	@staticmethod
+	def modifyEDMCards():
+
+		magicians = 0
+		for i in range(8):
+			if (randint(0, 99) < 15):
+				magicians += 1
+
+		randomCard1 = DraftHelper.randomFromList(Datas.objects.getExtraDeckMonsters(), 8-magicians)
+		randomCard2 = DraftHelper.randomFromList(Datas.objects.getEDMCustomFilter([(0x2, True, 'race')]), magicians)
+		randomCard = randomCard1 + randomCard2
+		return randomCard
+
+
+	@staticmethod
+	def modifyMDMCards():
+
+		magicians = 0
+		for i in range(4):
+			if (randint(0, 99) < 15):
+				magicians += 1
+
+		randomCard1 = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4-magicians)
+		randomCard2 = DraftHelper.randomFromList(Datas.objects.getMDMCustomFilter([(0x2, True, 'race')]), magicians)
+		randomCard = randomCard1 + randomCard2
+		return randomCard
+
+class YumaCharacter(DefaultCharacter):
+	chooseCardPriority = 0
+
+	@staticmethod
+	def getExtraStarterCards():
+
+		#starting #39 Utopia
+		return [84013237]
+
+
+
+	# Double amount of extra deck monsters
+	@staticmethod	
+	def modifyDraft(mdsize, edsize):
+
+
+		if (edsize * 2 <= mdsize):
+			return False
+
+		else:
+			return True
+
+class MakoCharacter(DefaultCharacter):
+	chooseMDMPriority = 0
+	chooseEDMPriority = 0
+
+
+
+	@staticmethod
+	def getMainStarterCards():
+
+		#starting Umi, umiruka, a legendary ocean
+		return [22702055,82999629, 295517]
+
+
+
+	# 50% chance for a monster to be water type
+	@staticmethod
+	def modifyEDMCards():
+
+		magicians = 0
+		for i in range(8):
+			if (randint(0, 99) < 50):
+				magicians += 1
+
+		randomCard1 = DraftHelper.randomFromList(Datas.objects.getExtraDeckMonsters(), 8-magicians)
+		randomCard2 = DraftHelper.randomFromList(Datas.objects.getEDMCustomFilter([(0x2, True, 'attribute')]), magicians)
+		randomCard = randomCard1 + randomCard2
+		return randomCard
+
+
+	@staticmethod
+	def modifyMDMCards():
+
+		magicians = 0
+		for i in range(4):
+			if (randint(0, 99) < 50):
+				magicians += 1
+
+		randomCard1 = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4-magicians)
+		randomCard2 = DraftHelper.randomFromList(Datas.objects.getMDMCustomFilter([(0x2, True, 'attribute')]), magicians)
+		randomCard = randomCard1 + randomCard2
+		return randomCard
+
+class AkiCharacter(DefaultCharacter):
+	@staticmethod
+	def getMainStarterCards():
+
+		#starting lonefire blossom, glow up bulb, blue rose dragon, gigaplant
+		return [48686504,67441435, 98884569, 53257892]
+
+	@staticmethod
+	def getExtraStarterCards():
+
+		#starting black rose dragon
+		return [73580471]

@@ -86,6 +86,90 @@ export class DeckBonusSelector {
 	}
 }
 
+export class DeckCharacter {
+
+		constructor(
+		public characterid: number,
+		public name: string,
+		public flavor: string,
+		public desc: string,
+		){}
+
+}
+
+export class DeckCharacterSelector {
+
+	private static bonusArray: DeckCharacter[] = [ 
+			new DeckCharacter(0, "Battle City Kaiba",
+				"\"It's not a monster, it's a god! \"",
+				"Includes:\n"+
+				"1x Enemy Controller\n" + 
+				"1x Obelisk the Tormentor\n" + 
+				"1x Soul Exchange"),
+			new DeckCharacter(1, "Blue Eyes Fanatic Kaiba",
+				"Don't stand between a man and his dragon",
+				"Includes:\n"+
+				"(DRAFT EFFECT) You can always draft Blue Eyes White dragon during a maindeck draft.\n"),
+			new DeckCharacter(2, "Joey",
+				"Not really unlimited, in fact the number of blades is quite limited",
+				"Includes:\n"+
+				"1x Red Eyes Black Dragon\n" + 
+				"1x Heart of the Underdog\n" + 
+				"1x Ancient Rules\n" +
+				"(DRAFT EFFECT) Normal monsters will always have > 1500 atk or defense"),
+			new DeckCharacter(3, "Yung Yugi",
+				"It's not cheating if you're the king of games",
+				"Includes:\n"+
+				"1x Monster Reborn\n" + 
+				"1x Horn of Heaven\n" + 
+				"(EFFECT) You only need to draft 30 main deck cards"),
+			new DeckCharacter(4, "Jaden",
+				"NEEDS CONTENT",
+				"Includes:\n"+
+				"1x A Hero Lives\n" + 
+				"1x E Hero Bubbleman\n" + 
+				"(DRAFT EFFECT) You can draft mask change during a main deck draft\n" +
+				"(DRAFT EFFECT) You can draft mask change II during an extra deck draft\n" +
+				"(DRAFT EFFECT) You can draft Masked Heroes during the extra deck draft"),
+			new DeckCharacter(5, "The Pharaoh",
+				"I also want to possess an elementary schooler",
+				"Includes:\n"+
+				"1x Eternal Soul\n" + 
+				"1x Dark Magician\n" + 
+				"1x Wonder Wand\n" +
+				"(DRAFT EFFECT) 15% chance for every monster to be a spellcaster"),
+			new DeckCharacter(6, "Yuma",
+				"NEEDS CONTENT",
+				"Includes:\n"+
+				"1x Number 39 Utopia (EXTRA)\n" + 
+				"(EFFECT) You can draft twice the number of extra deck monsters"),
+			new DeckCharacter(7, "Mako Tsunami",
+				"His cards never get wet..",
+				"Includes:\n"+
+				"1x Umi\n" + 
+				"1x Umiruka\n" + 
+				"1x A Legendary Ocean\n" + 
+				"(DRAFT EFFECT) 50% chance for each monster to be WATER ATTRIBUTE"),
+			new DeckCharacter(8, "Aki",
+				"Konami more plant support plz",
+				"Includes:\n"+
+				"1x Lonefire Blossom\n" + 
+				"1x Glow-up Bulb\n" + 
+				"1x Blue Rose Dragon\n" +
+				"1x Gigaplant\n" + 
+				"1x Black Rose Dragon(EXTRA)"),
+			new DeckCharacter(99, "Nothing",
+				"Play the draft without starter cards",
+				""
+				)];
+
+	getCharacters(): DeckCharacter[] {
+		return DeckCharacterSelector.bonusArray;
+	}
+}
+
+
+
 export class DeckSize {
 	constructor(
 		public decksizeid: number,
