@@ -197,7 +197,7 @@ class DeckManager(models.Manager):
 		mStarter = DraftController.getMainStarterCards(bonusid, characterid)
 		eStarter = DraftController.getExtraStarterCards(bonusid, characterid)
 
-		deckSizeid = DraftController.getDeckSize(bonusid, characterid, deckSizeid)
+		deckSizeid = DraftController.getDeckSizeId(bonusid, characterid, deckSizeid)
 
 		deck = Deck.objects.create(hashField = hashField, bonusid = bonusid, characterid = characterid, deckSizeid = deckSizeid)
 		for cardid in mStarter:
@@ -330,15 +330,11 @@ This thing manages the different draft effects and figures out which ones overri
 
 class DraftController:
 	@staticmethod
-	def getDeckSize(bonusid, characterid, decksizeid):
+	def getDeckSizeId(bonusid, characterid, decksizeid):
 		dp = BonusGetter.BonusFactory(bonusid).deckSizePriority
 		dp2 = CharacterGetter.CharacterFactory(characterid).deckSizePriority
-		print(dp)
-		print(dp2)
-		print(CharacterGetter.CharacterFactory(characterid).getDeckSizeid())
-		print("decksizes")
 		if(dp == -1 and dp2 == -1):
-			return DeckSize.Factory(decksizeid)
+			return decksizeid
 		else:
 			if(dp > dp2):
 				return BonusGetter.BonusFactory(bonusid).getDeckSizeid()
