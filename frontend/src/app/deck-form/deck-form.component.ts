@@ -52,7 +52,7 @@ export class DeckFormComponent implements OnInit {
 
 				var deckdata = response.json();
 
-				this.deckModel = new Deck(deckdata.hashField, deckdata.finished, deckdata.size,deckdata.mainDeck);
+				this.deckModel = new Deck(deckdata);
 
 			}).catch(response =>{
 				this.submittedHash = false;
@@ -83,7 +83,7 @@ export class DeckFormComponent implements OnInit {
 	    	this.requestSent = false;
 	    	this.createDeckSuccessful = true;
 	    	var deckdata = response.json();
-	    	this.deckModel = new Deck(deckdata.hashField, deckdata.finished, deckdata.size, deckdata.mainDeck);
+	    	this.deckModel = new Deck(deckdata);
 		  }).catch(response =>{
 		  	this.requestSent = false;
 		  	this.getDeckStatus = response.status;

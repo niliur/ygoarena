@@ -1,0 +1,10 @@
+
+root/arena/migrations/
+
+frontend/package-lock\.json
+
+frontend/package\.json
+
+*.pyc
+
+root/ygo_card_info\.cdb

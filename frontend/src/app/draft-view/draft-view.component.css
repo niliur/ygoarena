@@ -1,0 +1,43 @@
+.equal {
+  display: flex;
+  display: -webkit-flex;
+  flex-wrap: wrap;
+}
+
+.flex-container {
+  display:flex;
+  flex-direction: column;
+  justify-content: center;
+
+}
+
+.border-black-solid {
+  border-style: solid;
+  border-width: 1px;
+}
+
+.aspect-shrink {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: auto;
+  
+}
+
+.table-header {
+  width:100px;
+}
+
+.card-table{
+  width:100%;
+}
+
+.table-row{
+  border-style: solid;
+  border-width: 1px;
+}
+
+.table-description{
+  col-span: 2;
+  width:100%;
+}

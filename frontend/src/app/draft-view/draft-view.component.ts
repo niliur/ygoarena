@@ -56,14 +56,8 @@ export class DraftViewComponent implements OnInit {
 				var deckdata = response.json();
 				var tmpDrafts : Draft[] = [];
 				for(let i = 0; i < deckdata.length; ++i){
-					var draft = new Draft(deckdata[i].card.id, new Card(deckdata[i].card.id), 
-										new Text(deckdata[i].text.name, deckdata[i].text.desc),
-										deckdata[i].draftnum);
+					var draft = new Draft(deckdata[i], undefined);
 					tmpDrafts.push(draft);
-
-					//console.log(deckdata[i].text.name);
-
-					//console.log(deckdata[i].text.desc);
 
 				}
 				this.drafted = tmpDrafts;
@@ -100,6 +94,25 @@ export class DraftViewComponent implements OnInit {
 		  });
 	}
 
+	private postNoPurchase(){
+
+		this.draftSent = true;
+		var obj = {};
+		obj['id'] = 0;
+		var data = JSON.stringify(obj);
+		var headers = new Headers({ 'Content-Type': 'application/json' });
+		var options = new RequestOptions({ headers: headers });
+	    this.http
+	    	.post(`${this.loadurlstart}${this.deckCode}${this.loadDrafting}`, data, options).toPromise()
+	    	.then(response => {
+	    		this.updateDeck();
+	    		this.draftSent = false;
+		  }).catch(response =>{
+		  	this.draftSent = false;
+		  });
+
+	}
+
 	private finishDraft(){
 		this.finishedSent = true;
 		var obj = {};
@@ -132,9 +145,7 @@ export class DraftViewComponent implements OnInit {
 			var deckdata = response.json();
 			var tmpDrafts : Draft[] = [];
 			for(let i = 0; i < deckdata.length; ++i){
-				var draft = new Draft(deckdata[i].card.id, new Card(deckdata[i].card.id), 
-									new Text(deckdata[i].text.name, deckdata[i].text.desc),
-									deckdata[i].draftnum, `${this.cardAssetUrl}${deckdata[i].card.id}.png` );
+				var draft = new Draft(deckdata[i], `${this.cardAssetUrl}${deckdata[i].card.id}.png` );
 				tmpDrafts.push(draft);
 
 			}
@@ -158,7 +169,7 @@ export class DraftViewComponent implements OnInit {
 
 				var deckdata = response.json();
 
-				this.deckModel = new Deck(deckdata.hashField, deckdata.finished, deckdata.size, deckdata.mainDeck);
+				this.deckModel = new Deck(deckdata);
 				this.deckFinished = deckdata.finished;
 				this.getDrafted();
 				if(!this.deckFinished){
@@ -186,6 +197,58 @@ export class DraftViewComponent implements OnInit {
 	    });
 
 
+	}
+
+	createRange(number){
+		var items: number[] = [];
+		number = Math.ceil(number);
+		for(var i = 1; i <= number; i++){
+			items.push(i);
+		}
+		return items;
+	}
+
+	typeToText(code){
+
+		if((code & 1) == 1){
+			return "Monster";
+		}
+		else if((code & 2) == 2){
+			return "Spell";
+		}else if((code & 4) == 4){
+			return "Trap";
+		}
+		return code;
+
+	}
+
+	attributeToText(code){
+		if(code === 0){
+			return 0;
+		}
+		else if((code&1) == 1){
+			return "Earth";
+		}
+		else if((code&2) == 2){
+			return "Water";
+		}
+		else if((code&4) == 4){
+			return "Fire";
+		}
+		else if((code&8) == 8){
+			return "Wind";
+		}
+		else if((code&16) == 16){
+			return "Light";
+		}
+		else if((code&32) == 32){
+			return "Dark";
+		}
+		else if((code&64) == 64){
+			return "Divine";
+		}
+
+		return "Something has gone wrong, please report this.";
 	}
 
 }

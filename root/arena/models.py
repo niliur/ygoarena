@@ -16,6 +16,8 @@ from random import randint
 from abc import ABCMeta, abstractmethod
 import string
 import inspect
+from django.db.models import Max
+import math
 
 def random_string(length):
     pool = string.ascii_letters + string.digits
@@ -182,7 +184,7 @@ class Texts(models.Model):
 
 
 class DeckManager(models.Manager):
-	def createDeck(self, bonusid = 99,characterid = 99, deckSizeid = 99):
+	def createDeck(self, bonusid = 99,characterid = 99, deckSizeId = 99):
 		ba = bytearray(struct.pack("f", time.time()))
 
 		hashField = random_string(10)
@@ -197,9 +199,11 @@ class DeckManager(models.Manager):
 		mStarter = DraftController.getMainStarterCards(bonusid, characterid)
 		eStarter = DraftController.getExtraStarterCards(bonusid, characterid)
 
-		deckSizeid = DraftController.getDeckSizeId(bonusid, characterid, deckSizeid)
 
-		deck = Deck.objects.create(hashField = hashField, bonusid = bonusid, characterid = characterid, deckSizeid = deckSizeid)
+		mainDeckLimit = DraftController.getMainDeckSize(bonusid, characterid, deckSizeId)
+		extraDeckLimit = DraftController.getExtraDeckSize(bonusid, characterid, deckSizeId)
+
+		deck = Deck.objects.create(hashField = hashField, bonusid = bonusid, characterid = characterid, mainDeckLimit = mainDeckLimit, extraDeckLimit = extraDeckLimit, curDraftNum = 0)
 		for cardid in mStarter:
 			deck.addStarters(cardid, True)
 
@@ -219,14 +223,19 @@ class DeckManager(models.Manager):
 class Deck(models.Model):
 	id = models.AutoField(primary_key = True)
 	date = models.DateTimeField(default = timezone.now)
-	finished = models.BooleanField(default=False)
 	hashField = models.TextField(max_length = 10)
 	mainDeck = models.IntegerField(default = 0)
 	extraDeck = models.IntegerField(default = 0)
+	mainDeckLimit = models.IntegerField(default = 0)
+	extraDeckLimit = models.IntegerField(default = 0)
 	size = models.IntegerField(default = 0)
-	deckSizeid = models.IntegerField(default = 99)
 	bonusid = models.IntegerField(default = 99)
 	characterid = models.IntegerField(default = 99)
+
+	curDraftNum = models.IntegerField(default = 0)
+	finished = models.BooleanField(default=False)
+	draftFinished = models.BooleanField(default=False)
+	tokens = models.IntegerField(default = 3)
 
 	objects = DeckManager()
 
@@ -234,58 +243,125 @@ class Deck(models.Model):
 
 	def generateDraftList(self):
 
-		mainDeck, randomCard = DraftController.generateDraftList(self.bonusid, self.characterid, self.mainDeck, self.extraDeck)
+		mainDeck, randomCard = DraftController.generateDraftList(self.bonusid, self.characterid, self.mainDeck, self.extraDeck, self.mainDeckLimit, self.extraDeckLimit)
 
 		for i in randomCard:
 			if isinstance(i, int):
 				pk = i
 			else:
 				pk = i.pk;
-			Draft.objects.create(deck = self,text = Texts.objects.get(pk = pk), card = Datas.objects.get(pk = pk), draftnum = self.size+1, mainDeck = mainDeck)
-		draftList = self.draft_set.filter(draftnum = self.size + 1)
+			Draft.objects.create(deck = self,text = Texts.objects.get(pk = pk), card = Datas.objects.get(pk = pk), draftnum = self.curDraftNum, mainDeck = mainDeck, extraDeck = not mainDeck)
+		draftList = self.draft_set.filter(draftnum = self.curDraftNum)
 		return draftList
+
+	def generateTokenPurchaseList(self):
+		#Since they are sharing the draft object might as well use num 1000
+
+		pList = TokenPurchases.getBuyables()
+		for p in pList:
+			pk = p[0]
+			cost = p[1]
+			md = p[2]
+			ed = p[3]
+			Draft.objects.create(deck = self, text = Texts.objects.get(pk = pk), card = Datas.objects.get(pk = pk), draftnum = 1000, mainDeck = md, extraDeck = ed, tokenCost = cost)
+
+		draftList = self.draft_set.filter(draftnum = 1000)
+		return draftList
+
+
 
 	def serveDraft(self):
 		if self.finished == True:
 			return None
-		curDrafts = self.draft_set.filter(draftnum = self.size + 1)
-		if curDrafts.first() == None:
-			return self.generateDraftList()
+		elif self.draftFinished == True:
+			#set the shop picks to draft num 1000
+			curDrafts = self.draft_set.filter(draftnum = 1000)
+			if curDrafts.first() == None:
+				return self.generateTokenPurchaseList()
+			else:
+				return curDrafts
 		else:
-			return curDrafts
+			curDrafts = self.draft_set.filter(draftnum = self.curDraftNum)
+			if curDrafts.first() == None:
+				return self.generateDraftList()
+			else:
+				return curDrafts
+
 
 	def addStarters(self, pk, mainDeck):
-		print(pk)
-		Draft.objects.create(deck = self,text = Texts.objects.get(pk = pk), card = Datas.objects.get(pk = pk), draftnum = self.size+1, mainDeck = mainDeck)
-		self.chooseDraft(pk)
+		self.addPick(pk, mainDeck, not mainDeck, False, 0)
+
+
+	def addPick(self, pk, md, ed, other, gen):
+		picks = self.pick_set.all().aggregate(Max('picknum'))
+
+
+		if picks['picknum__max'] == None:
+			newMax = 0
+
+		else:
+			newMax = picks['picknum__max'] + 1
+
+		Pick.objects.create(deck = self, card = Datas.objects.get(pk = pk), text = Texts.objects.get(pk = pk), mainDeck = md, extraDeck = ed, other = other, picknum = newMax,generator = gen)
+		self.size = self.size + 1
+		if md:
+			self.mainDeck = self.mainDeck + 1
+		elif ed:
+			self.extraDeck = self.extraDeck + 1
+
+		self.save()
+
+
+
 
 	def chooseDraft(self, draftid):
 		if self.finished == True:
 			return None
 
-		drafts = self.draft_set.filter(draftnum = self.size + 1)
+		if self.draftFinished == True:
+			if(draftid == 0):
+				self.finished = True
+				self.save()
+			else:
+				drafts = self.draft_set.filter(draftnum = 1000)
+				for draft in drafts:
+					if draft.card.id == draftid:
+						if (self.tokens >= draft.tokenCost):
+							self.addPick(draftid, draft.mainDeck, not draft.mainDeck, False, 2)
+							self.tokens -= draft.tokenCost
+							if (self.tokens <= 0):
+								self.finished = True
+							self.save()
+							return draft
+			
+			return None
+
+
+		drafts = self.draft_set.filter(draftnum = self.curDraftNum)
 		for draft in drafts:
-			if draft.draftnum == (self.size + 1):
-				if draft.card.id == draftid:
-					draft.picked = True
-					self.size = self.size+1
-					if draft.mainDeck:
-						self.mainDeck = self.mainDeck+1
-						if (self.mainDeck >= DeckSize.Factory(self.deckSizeid)):
-							self.finished = True
-					else:
-						self.extraDeck = self.extraDeck+1
-					draft.save()
-					self.save()
-					return draft
+			if draft.card.id == draftid:
+				self.addPick(draftid, draft.mainDeck, not draft.mainDeck, False, 1)
+				self.curDraftNum = self.curDraftNum+1
+
+				if ((self.mainDeck >= self.mainDeckLimit) and (self.extraDeck >= self.extraDeckLimit)):
+					self.draftFinished = True
+
+				self.save()
+				return draft
 		return None
 
 	def finishDraft(self):
-		self.finished = True
-		self.save()
+		#self.finished = True
+		#self.save()
+
+		#cannot voluntarily finish draft now
+		pass
 
 	def getDrafted(self):
 		return self.draft_set.select_related('card').select_related('text').filter(picked = True)
+
+	def getPicked(self):
+		return self.pick_set.select_related('card').select_related('text').all()
 
 	def getDraftedText(self, dlist = None):
 		texts = []
@@ -305,16 +381,43 @@ class Deck(models.Model):
 	def __str__(self):
 		return self.hashField
 
+class Pick(models.Model):
+
+	id = models.AutoField(primary_key = True)
+	deck = models.ForeignKey('Deck', on_delete = models.CASCADE, db_index = True)
+	card = models.ForeignKey('Datas', on_delete = models.CASCADE, db_index = False)
+	text = models.ForeignKey('Texts', on_delete = models.CASCADE, db_index = False)
+
+
+	picknum = models.IntegerField()
+
+	mainDeck = models.IntegerField()
+	extraDeck = models.IntegerField()
+	other = models.IntegerField()
+
+	#0 is from draft, #1 is added automatically
+	generator = models.IntegerField()
+
+
+	def __str__(self):
+		return str(self.draft.card.id)
+
+
+
+
+
 
 class Draft(models.Model):
 	id = models.AutoField(primary_key = True)
 	deck = models.ForeignKey('Deck', on_delete = models.CASCADE, db_index = True)
 	card = models.ForeignKey('Datas', on_delete = models.CASCADE, db_index = False)
 	text = models.ForeignKey('Texts', on_delete = models.CASCADE, db_index = False)
-	date = models.DateTimeField(auto_now = True)
 	draftnum = models.IntegerField()
 	picked = models.BooleanField(default=False)
 	mainDeck = models.BooleanField()
+	extraDeck = models.BooleanField()
+	effect = models.IntegerField(default = 0)
+	tokenCost = models.IntegerField(default = 0)
 
 	def getCard(self):
 		return self.card
@@ -330,18 +433,36 @@ This thing manages the different draft effects and figures out which ones overri
 
 class DraftController:
 	@staticmethod
-	def getDeckSizeId(bonusid, characterid, decksizeid):
-		dp = BonusGetter.BonusFactory(bonusid).deckSizePriority
-		dp2 = CharacterGetter.CharacterFactory(characterid).deckSizePriority
+	def getMainDeckSize(bonusid, characterid, deckSizeId):
+		dp = BonusGetter.BonusFactory(bonusid).mainDeckSizePriority
+		dp2 = CharacterGetter.CharacterFactory(characterid).mainDeckSizePriority
+		md,ed = DeckSize.Factory(deckSizeId)
 		if(dp == -1 and dp2 == -1):
-			return decksizeid
+			return md
 		else:
 			if(dp > dp2):
-				return BonusGetter.BonusFactory(bonusid).getDeckSizeid()
+				return BonusGetter.BonusFactory(bonusid).getMainDeckSize(md)
 			elif(dp < dp2):
-				return CharacterGetter.CharacterFactory(characterid).getDeckSizeid()
+				return CharacterGetter.CharacterFactory(characterid).getMainDeckSize(md)
 			else:
 				raise ValueError("DeckSize somehow has equal priority????")
+
+
+	@staticmethod
+	def getExtraDeckSize(bonusid, characterid, deckSizeId):
+		dp = BonusGetter.BonusFactory(bonusid).extraDeckSizePriority
+		dp2 = CharacterGetter.CharacterFactory(characterid).extraDeckSizePriority
+		md,ed = DeckSize.Factory(deckSizeId)
+		if(dp == -1 and dp2 == -1):
+			return ed
+		else:
+			if(dp > dp2):
+				return BonusGetter.BonusFactory(bonusid).getExtraDeckSize(ed)
+			elif(dp < dp2):
+				return CharacterGetter.CharacterFactory(characterid).getExtraDeckSize(ed)
+			else:
+				raise ValueError("DeckSize somehow has equal priority????")
+
 
 	@staticmethod
 	def getMainStarterCards(bonusid, characterid):
@@ -353,19 +474,19 @@ class DraftController:
 		return BonusGetter.BonusFactory(bonusid).getExtraStarterCards() + CharacterGetter.CharacterFactory(characterid).getExtraStarterCards()
 
 	@staticmethod
-	def generateDraftList(bonusid, characterid, mainDeckSize, extraDeckSize):
+	def generateDraftList(bonusid, characterid, mainDeckSize, extraDeckSize, mainDeckLimit, extraDeckLimit):
 		bonus = BonusGetter.BonusFactory(bonusid)
 		character = CharacterGetter.CharacterFactory(characterid)
 
 
 
 		if(bonus.chooseCardPriority > character.chooseCardPriority):
-			mainDeck = bonus.modifyDraft(mainDeckSize, extraDeckSize)
+			mainDeck = bonus.modifyDraft(mainDeckSize, extraDeckSize, mainDeckLimit, extraDeckLimit)
 		elif(bonus.chooseCardPriority < character.chooseCardPriority):
-			mainDeck = character.modifyDraft(mainDeckSize, extraDeckSize)
+			mainDeck = character.modifyDraft(mainDeckSize, extraDeckSize, mainDeckLimit, extraDeckLimit)
 		else:
 			# Defaults to character
-			mainDeck = character.modifyDraft(mainDeckSize, extraDeckSize)
+			mainDeck = character.modifyDraft(mainDeckSize, extraDeckSize, mainDeckLimit, extraDeckLimit)
 
 		randomCard = []
 
@@ -416,17 +537,11 @@ class DeckSize:
 	@staticmethod
 	def Factory(deckSizeid):
 		if deckSizeid == 0:
-			return 40
+			return 32, 8
 		elif deckSizeid == 1:
-			return 48
+			return 40, 10
 		elif deckSizeid == 2:
-			return 60
-		elif deckSizeid == 3:
-			return 70
-		elif deckSizeid == 4:
-			return 30
-		else:
-			return 40
+			return 48, 12
 
 
 
@@ -511,8 +626,16 @@ class Bonus:
 
 	@property
 	@abstractmethod
-	def deckSizePriority(self):
+	def mainDeckSizePriority(self):
 		pass
+
+
+	@property
+	@abstractmethod
+	def extraDeckSizePriority(self):
+		pass
+
+
 
 
 
@@ -579,7 +702,8 @@ class DefaultBonus(Bonus):
 	chooseEDMPriority = -1
 	chooseMDMPriority = -1
 	chooseSTPriority = -1
-	deckSizePriority = -1
+	mainDeckSizePriority = -1
+	extraDeckSizePriority = -1
 
 	@staticmethod
 	def getMainStarterCards():
@@ -593,14 +717,19 @@ class DefaultBonus(Bonus):
 
 	#1 to 4 ratio of extra to monster
 	@staticmethod	
-	def modifyDraft(mdsize, edsize):
+	def modifyDraft(mdsize, edsize, mdLimit, edLimit):
+		missingMain = max(0,mdLimit - mdsize)
+		missingExtra = max(0, edLimit - edsize)
 
+		if ((missingMain == 0) and (missingExtra == 0)):
+			ValueError("Should not generate")
 
-		if (edsize * 4 <= mdsize):
-			return False
+		if (missingExtra * 4 <= missingMain):
+			# return true for maindeck, false for extra deck
+			return True
 
 		else:
-			return True
+			return False
 
 	@staticmethod
 	def modifyEDMCards():
@@ -624,7 +753,11 @@ class DefaultBonus(Bonus):
 
 
 	@staticmethod
-	def getDeckSizeid():
+	def getMainDeckSize():
+		return None
+
+	@staticmethod
+	def getExtraDeckSize():
 		return None
 
 
@@ -678,8 +811,8 @@ class DegenerateBonus(DefaultBonus):
 class TributeBonus(DefaultBonus):
 	@staticmethod
 	def getMainStarterCards():
-		#5 and over club: 1 x Tribute burial, 1 x Stormforth, 1 x Dark Squire, Double summon
-		return [80230510, 79844764,59463312, 43422537]
+		#5 and over club: 1 x Tribute burial, 1 x Dark Squire, Double summon
+		return [80230510, 79844764, 43422537]
 
 class TrapBonus(DefaultBonus):
 
@@ -687,8 +820,8 @@ class TrapBonus(DefaultBonus):
 
 	@staticmethod
 	def getMainStarterCards():
-		#Powerful rebirth, quaking mirror force
-		return [84298614, 40838625]
+		#Powerful rebirth
+		return [84298614]
 
 	@staticmethod
 	def modifySTCards():
@@ -708,15 +841,19 @@ class SanganBonus(DefaultBonus):
 
 class LawnmowBonus(DefaultBonus):
 
-	deckSizePriority = 1
+	mainDeckSizePriority = 1
 	@staticmethod
 	def getMainStarterCards():
 		#3x lawnmowing, imp sabres, plaguespreader, electroturtle, shadoll beast
 		return [11110587, 11110587, 11110587, 30068120, 33420078,34710660,3717252]
 
 	@staticmethod
-	def getDeckSizeid():
-		return 3
+	def getMainDeckSize(mds):
+		return 60
+
+	@staticmethod
+	def getExtraDeckSize(eds):
+		return 15
 
 
 
@@ -810,7 +947,8 @@ class DefaultCharacter(Character):
 	chooseEDMPriority = -1
 	chooseMDMPriority = -1
 	chooseSTPriority = -1
-	deckSizePriority = -1
+	mainDeckSizePriority = -1
+	extraDeckSizePriority = -1
 
 	@staticmethod
 	def getMainStarterCards():
@@ -857,17 +995,25 @@ class DefaultCharacter(Character):
 
 	#1 to 4 ratio of extra to monster
 	@staticmethod	
-	def modifyDraft(mdsize, edsize):
+	def modifyDraft(mdsize, edsize, mdLimit, edLimit):
+		missingMain = max(0,mdLimit - mdsize)
+		missingExtra = max(0, edLimit - edsize)
 
+		if ((missingMain == 0) and (missingExtra == 0)):
+			ValueError("Should not generate")
 
-		if (edsize * 4 <= mdsize):
-			return False
-
-		else:
+		if (missingExtra * 4 <= missingMain):
+			# return true for maindeck, false for extra deck
 			return True
 
+		else:
+			return False
 	@staticmethod
-	def getDeckSizeid():
+	def getMainDeckSize():
+		return None
+
+	@staticmethod
+	def getExtraDeckSize():
 		return None
 
 class BCKaibaCharacter(DefaultCharacter):
@@ -906,7 +1052,8 @@ class JoeyCharacter(DefaultCharacter):
 
 class YoungYugiCharacter(DefaultCharacter):
 
-	deckSizePriority = 2
+	mainDeckSizePriority = 2
+	extraDeckSizePriority = 1
 
 	@staticmethod
 	def getMainStarterCards():
@@ -915,8 +1062,12 @@ class YoungYugiCharacter(DefaultCharacter):
 		return [83764718,98069388]
 
 	@staticmethod
-	def getDeckSizeid():
-		return 4
+	def getMainDeckSize(mds):
+		return 24
+	
+	@staticmethod
+	def getExtraDeckSize(eds):
+		return 6
 
 class JadenCharacter(DefaultCharacter):
 	chooseEDMPriority = 0
@@ -991,6 +1142,7 @@ class OldYugiCharacter(DefaultCharacter):
 
 class YumaCharacter(DefaultCharacter):
 	chooseCardPriority = 0
+	extraDeckSizePriority = 2
 
 	@staticmethod
 	def getExtraStarterCards():
@@ -998,18 +1150,28 @@ class YumaCharacter(DefaultCharacter):
 		#starting #39 Utopia
 		return [84013237]
 
+	@staticmethod
+	def getExtraDeckSize(eds):
+		return eds*2
+
 
 
 	# Double amount of extra deck monsters
+	#1 to 4 ratio of extra to monster
 	@staticmethod	
-	def modifyDraft(mdsize, edsize):
+	def modifyDraft(mdsize, edsize, mdLimit, edLimit):
+		missingMain = max(0,mdLimit - mdsize)
+		missingExtra = max(0, edLimit - edsize)
 
+		if ((missingMain == 0) and (missingExtra == 0)):
+			ValueError("Should not generate")
 
-		if (edsize * 2 <= mdsize):
-			return False
+		if (missingExtra * 2 <= missingMain):
+			# return true for maindeck, false for extra deck
+			return True
 
 		else:
-			return True
+			return False
 
 class MakoCharacter(DefaultCharacter):
 	chooseMDMPriority = 0
@@ -1065,3 +1227,24 @@ class AkiCharacter(DefaultCharacter):
 
 		#starting black rose dragon
 		return [73580471]
+
+
+class TokenPurchases():
+
+
+	@staticmethod
+	def getBuyables():
+		#Card id, token cost, maindeck, extradeck
+		return ([(4923662, 1, True, False), #Chaos burst
+			(56120475, 2, True, False),#Sakuretsu armor
+			(81510157, 3, True, False), #Soul taker
+			(51482758, 1, True, False), #remove trap
+			(5318639, 2, True, False), #mst
+			(43898403, 3, True, False), #twin twisters
+			(71587526, 3, True, False), #karma cut
+			(31222701, 1, True, False), #Wavering eyes
+			(55144522, 3, True, False), #pot of greed
+			(87979586, 3, True, False), #Angel trumpeter
+			(70046172, 2, True, False), #rush recklessly
+			 #Nothing at all, send 0 
+			])

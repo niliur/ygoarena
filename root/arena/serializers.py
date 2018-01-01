@@ -26,3 +26,10 @@ class draftSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = Draft
 		fields = '__all__'
+
+class pickSerializer(serializers.ModelSerializer):
+	card = cardsSerializer(many = False, read_only = True)
+	text = textsSerializer(many = False, read_only = True)
+	class Meta:
+		model = Pick
+		fields = '__all__'

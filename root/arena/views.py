@@ -63,8 +63,8 @@ def get_drafts(request, page_alias):
         except Deck.DoesNotExist:
             raise Http404("Deck does not exist")
 
-        drafted = deck.getDrafted()
-        serializer = draftSerializer(drafted, context={'request': request}, many = True)
+        drafted = deck.getPicked()
+        serializer = pickSerializer(drafted, context={'request': request}, many = True)
         return Response(serializer.data)
     raise HttpResponse('Wrong use of api')
 
@@ -161,7 +161,7 @@ def deck_generate(request, page_alias):
     if request.method == 'GET':
 
         if deck.finished:
-            drafts = deck.getDrafted()
+            drafts = deck.getPicked()
             buf = io.StringIO()
 
 
