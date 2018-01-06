@@ -41,3 +41,7 @@
   col-span: 2;
   width:100%;
 }
+
+.red-bg{
+  background-color: #ff0000;
+}

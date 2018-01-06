@@ -243,14 +243,23 @@ class Deck(models.Model):
 
 	def generateDraftList(self):
 
-		mainDeck, randomCard = DraftController.generateDraftList(self.bonusid, self.characterid, self.mainDeck, self.extraDeck, self.mainDeckLimit, self.extraDeckLimit)
+		lastEffect = self.pickdrafteffect_set.filter(draftnum = self.curDraftNum - 1)
+		if (len(lastEffect) > 0) :
+			effect = lastEffect[0].effect
+		else:
+			effect = 0
+		mainDeck, randomCard = DraftController.generateDraftList(self.bonusid, self.characterid, self.mainDeck, self.extraDeck, self.mainDeckLimit, self.extraDeckLimit, effect)
 
 		for i in randomCard:
 			if isinstance(i, int):
 				pk = i
 			else:
 				pk = i.pk;
-			Draft.objects.create(deck = self,text = Texts.objects.get(pk = pk), card = Datas.objects.get(pk = pk), draftnum = self.curDraftNum, mainDeck = mainDeck, extraDeck = not mainDeck)
+
+			dETuple = (0, "")
+			if(random.random() < 0.1):
+					dETuple = DraftEffect.getDraftEffects()[DraftEffect.getRandom()]
+			Draft.objects.create(deck = self,text = Texts.objects.get(pk = pk), card = Datas.objects.get(pk = pk), draftnum = self.curDraftNum, mainDeck = mainDeck, extraDeck = not mainDeck, effect = dETuple[0], effectString = dETuple[1])
 		draftList = self.draft_set.filter(draftnum = self.curDraftNum)
 		return draftList
 
@@ -318,6 +327,8 @@ class Deck(models.Model):
 		if self.finished == True:
 			return None
 
+
+		#Token purchase section
 		if self.draftFinished == True:
 			if(draftid == 0):
 				self.finished = True
@@ -337,10 +348,46 @@ class Deck(models.Model):
 			return None
 
 
+		# #Draft section
+
+		# effArray = []
+		# effArray.append((0, "No Effect"))
+		# effArray.append((1, "If you pick this card, get 2 copies of it"))
+		# effArray.append((2, "If you pick this card, draft 1 more main deck card"))
+		# effArray.append((3, "If you pick this card, draft 3 more main deck cards"))
+		# effArray.append((4, "If you pick this card, draft 2 less main deck cards"))
+		# effArray.append((5, "If you pick this card, draft 1 more extra deck card"))
+		# effArray.append((6, "If you pick this card, get 1 token"))
+		# effArray.append((7, "If you pick this card, your next card draft has only 4 options"))
+		# effArray.append((8, "If you pick this card, get 2 tokens"))
+		# effArray.append((9, "If you pick this card, lose 1 token"))
+
+
 		drafts = self.draft_set.filter(draftnum = self.curDraftNum)
 		for draft in drafts:
 			if draft.card.id == draftid:
 				self.addPick(draftid, draft.mainDeck, not draft.mainDeck, False, 1)
+				if (draft.effect == 1):
+					self.addPick(draftid, draft.mainDeck, not draft.mainDeck, False, 1)
+				elif(draft.effect == 2):
+					self.mainDeckLimit += 1
+				elif(draft.effect == 3):
+					self.mainDeckLimit += 3
+				elif(draft.effect == 4):
+					self.mainDeckLimit -= 2
+				elif(draft.effect == 5):
+					self.extraDeckLimit += 1
+				elif(draft.effect == 6):
+					self.tokens += 1
+				elif(draft.effect == 7):
+					pass
+				elif(draft.effect == 8):
+					self.tokens += 2
+				elif(draft.effect == 9):
+					self.tokens -= 1
+
+				PickDraftEffect.objects.create(deck = self, draftnum = self.curDraftNum, effect = draft.effect)
+
 				self.curDraftNum = self.curDraftNum+1
 
 				if ((self.mainDeck >= self.mainDeckLimit) and (self.extraDeck >= self.extraDeckLimit)):
@@ -403,6 +450,11 @@ class Pick(models.Model):
 		return str(self.draft.card.id)
 
 
+class PickDraftEffect(models.Model):
+	id = models.AutoField(primary_key = True)
+	deck = models.ForeignKey('deck', on_delete = models.CASCADE, db_index = True)
+	draftnum = models.IntegerField()
+	effect = models.IntegerField(default = 0)
 
 
 
@@ -413,10 +465,10 @@ class Draft(models.Model):
 	card = models.ForeignKey('Datas', on_delete = models.CASCADE, db_index = False)
 	text = models.ForeignKey('Texts', on_delete = models.CASCADE, db_index = False)
 	draftnum = models.IntegerField()
-	picked = models.BooleanField(default=False)
 	mainDeck = models.BooleanField()
 	extraDeck = models.BooleanField()
 	effect = models.IntegerField(default = 0)
+	effectString = models.TextField(blank = True, null = False, default = "")
 	tokenCost = models.IntegerField(default = 0)
 
 	def getCard(self):
@@ -474,7 +526,7 @@ class DraftController:
 		return BonusGetter.BonusFactory(bonusid).getExtraStarterCards() + CharacterGetter.CharacterFactory(characterid).getExtraStarterCards()
 
 	@staticmethod
-	def generateDraftList(bonusid, characterid, mainDeckSize, extraDeckSize, mainDeckLimit, extraDeckLimit):
+	def generateDraftList(bonusid, characterid, mainDeckSize, extraDeckSize, mainDeckLimit, extraDeckLimit, draftEffect):
 		bonus = BonusGetter.BonusFactory(bonusid)
 		character = CharacterGetter.CharacterFactory(characterid)
 
@@ -490,39 +542,43 @@ class DraftController:
 
 		randomCard = []
 
+
+		if (draftEffect == 7):
+			numCards = 4
+		else:
+			numCards = 8
+
 		if mainDeck:
 			if(bonus.chooseMDMPriority > character.chooseMDMPriority):
-				randomCard += bonus.modifyMDMCards()
+				randomCard += bonus.modifyMDMCards(numCards/2, "code")
 			elif(bonus.chooseMDMPriority < character.chooseMDMPriority):
-				randomCard += character.modifyMDMCards()
+				randomCard += character.modifyMDMCards(numCards/2, "code")
 			else:
 				# Defaults to character
-				randomCard += character.modifyMDMCards()
+				randomCard += character.modifyMDMCards(numCards/2, "code")
 
 			if(bonus.chooseSTPriority > character.chooseSTPriority):
-				randomCard += bonus.modifySTCards()
+				randomCard += bonus.modifySTCards(numCards/2, "code")
 			elif(bonus.chooseSTPriority < character.chooseSTPriority):
-				randomCard += character.modifySTCards()
+				randomCard += character.modifySTCards(numCards/2, "code")
 			else:
 				# Defaults to character
-				randomCard += character.modifySTCards()
+				randomCard += character.modifySTCards(numCards/2, "code")
 
 			randomCard += character.addToMDMCards() + character.addToSTCards()
 
 		else:
 			if(bonus.chooseEDMPriority > character.chooseEDMPriority):
-				randomCard += bonus.modifyEDMCards()
+				randomCard += bonus.modifyEDMCards(numCards, "code")
 			elif(bonus.chooseEDMPriority < character.chooseEDMPriority):
-				randomCard += character.modifyEDMCards()
+				randomCard += character.modifyEDMCards(numCards, "code")
 			else:
 				# Defaults to character
-				randomCard += character.modifyEDMCards()
+				randomCard += character.modifyEDMCards(numCards, "code")
 
 			randomCard += character.addToEDMCards()
 
 
-
-		print(randomCard)
 		return mainDeck, randomCard
 
 
@@ -641,17 +697,17 @@ class Bonus:
 
 	@staticmethod
 	@abstractmethod
-	def modifyMDMCards():
+	def modifyMDMCards( card, code):
 		pass
 
 	@staticmethod
 	@abstractmethod
-	def modifySTCards():
+	def modifySTCards( card, code):
 		pass
 		
 	@staticmethod
 	@abstractmethod
-	def modifyEDMCards():
+	def modifyEDMCards( card, code):
 		pass
 
 
@@ -732,22 +788,22 @@ class DefaultBonus(Bonus):
 			return False
 
 	@staticmethod
-	def modifyEDMCards():
+	def modifyEDMCards(numCards, code):
 		rcard = Datas.objects.getExtraDeckMonsters()
 		#rcard = self.get_queryset()
-		randomCard = DraftHelper.randomFromList(rcard, 8)
+		randomCard = DraftHelper.randomFromList(rcard, numCards)
 		#randomCard = self.getEDM(6)
 		
 		return randomCard
 
 	@staticmethod
-	def modifyMDMCards():
-		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4)
+	def modifyMDMCards(numCards, code):
+		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), numCards)
 		return randomCard
 
 	@staticmethod
-	def modifySTCards():
-		randomCard = DraftHelper.randomFromList(Datas.objects.getST(), 4)
+	def modifySTCards(numCards, code):
+		randomCard = DraftHelper.randomFromList(Datas.objects.getST(), numCards)
 		return randomCard
 
 
@@ -880,17 +936,17 @@ class Character:
 
 	@staticmethod
 	@abstractmethod
-	def modifyMDMCards():
+	def modifyMDMCards( card, code):
 		pass
 
 	@staticmethod
 	@abstractmethod
-	def modifySTCards():
+	def modifySTCards( card, code):
 		pass
 		
 	@staticmethod
 	@abstractmethod
-	def modifyEDMCards():
+	def modifyEDMCards( card, code):
 		pass
 
 	@staticmethod
@@ -960,23 +1016,23 @@ class DefaultCharacter(Character):
 
 
 	@staticmethod
-	def modifyEDMCards():
+	def modifyEDMCards(numCards, code):
 		rcard = Datas.objects.getExtraDeckMonsters()
 		#rcard = self.get_queryset()
-		randomCard = DraftHelper.randomFromList(rcard, 8)
+		randomCard = DraftHelper.randomFromList(rcard, numCards)
 		#randomCard = self.getEDM(6)
 		
 		return randomCard
 
 
 	@staticmethod
-	def modifyMDMCards():
-		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4)
+	def modifyMDMCards(numCards, code):
+		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), numCards)
 		return randomCard
 
 	@staticmethod
-	def modifySTCards():
-		randomCard = DraftHelper.randomFromList(Datas.objects.getST(), 4)
+	def modifySTCards(numCards, code):
+		randomCard = DraftHelper.randomFromList(Datas.objects.getST(), numCards)
 		return randomCard
 
 	@staticmethod
@@ -1042,12 +1098,12 @@ class JoeyCharacter(DefaultCharacter):
 
 		#During the draft, all normal monsters have > 1500 attack or > 1500 def
 	@staticmethod
-	def modifyMDMCards():
+	def modifyMDMCards(num,code):
 
 		normal = lambda x: (x.type & 0x11 != 0x11) or (x.atk > 1500) or (x.def_field > 1500)
 
 
-		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4, normal)
+		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), num, normal)
 		return randomCard
 
 class YoungYugiCharacter(DefaultCharacter):
@@ -1088,15 +1144,23 @@ class JadenCharacter(DefaultCharacter):
 		return[93600443]
 
 	@staticmethod
-	def modifyEDMCards():
+	def modifyEDMCards(numCards, code):
 
 		#Chance to draft masked heroes
+
+		if(numCards <= 3):
+			numCardsNormal = 0
+			numCardsHeroes = numCards
+
+		else:
+			numCardsNormal = numCards - 3
+			numCardsHeroes = 3
 
 		normal = lambda x: (x.setcode & 0xA008 == 0xA008)
 
 
-		randomCard1 = DraftHelper.randomFromList(Datas.objects.getExtraDeckMonsters(), 5)
-		randomCard2 = DraftHelper.randomFromList(Datas.objects.getCardsFromList([89870349,62624486, 59642500, 58481572, 58147549, 50608164, 29095552, 22093873, 10920352]), 3)
+		randomCard1 = DraftHelper.randomFromList(Datas.objects.getExtraDeckMonsters(), numCardsNormal)
+		randomCard2 = DraftHelper.randomFromList(Datas.objects.getCardsFromList([89870349,62624486, 59642500, 58481572, 58147549, 50608164, 29095552, 22093873, 10920352]), numCardsHeroes)
 		randomCard = randomCard1 + randomCard2
 		return randomCard
 
@@ -1114,28 +1178,28 @@ class OldYugiCharacter(DefaultCharacter):
 
 	# 15% chance for a monster to be a spellcaster
 	@staticmethod
-	def modifyEDMCards():
+	def modifyEDMCards(numCards, code):
 
 		magicians = 0
-		for i in range(8):
+		for i in range(numCards):
 			if (randint(0, 99) < 15):
 				magicians += 1
 
-		randomCard1 = DraftHelper.randomFromList(Datas.objects.getExtraDeckMonsters(), 8-magicians)
+		randomCard1 = DraftHelper.randomFromList(Datas.objects.getExtraDeckMonsters(), numCards-magicians)
 		randomCard2 = DraftHelper.randomFromList(Datas.objects.getEDMCustomFilter([(0x2, True, 'race')]), magicians)
 		randomCard = randomCard1 + randomCard2
 		return randomCard
 
 
 	@staticmethod
-	def modifyMDMCards():
+	def modifyMDMCards(numCards, code):
 
 		magicians = 0
-		for i in range(4):
+		for i in range(numCards):
 			if (randint(0, 99) < 15):
 				magicians += 1
 
-		randomCard1 = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4-magicians)
+		randomCard1 = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), numCards-magicians)
 		randomCard2 = DraftHelper.randomFromList(Datas.objects.getMDMCustomFilter([(0x2, True, 'race')]), magicians)
 		randomCard = randomCard1 + randomCard2
 		return randomCard
@@ -1189,28 +1253,28 @@ class MakoCharacter(DefaultCharacter):
 
 	# 50% chance for a monster to be water type
 	@staticmethod
-	def modifyEDMCards():
+	def modifyEDMCards(numCards, code):
 
 		magicians = 0
-		for i in range(8):
+		for i in range(numCards):
 			if (randint(0, 99) < 50):
 				magicians += 1
 
-		randomCard1 = DraftHelper.randomFromList(Datas.objects.getExtraDeckMonsters(), 8-magicians)
+		randomCard1 = DraftHelper.randomFromList(Datas.objects.getExtraDeckMonsters(), numCards-magicians)
 		randomCard2 = DraftHelper.randomFromList(Datas.objects.getEDMCustomFilter([(0x2, True, 'attribute')]), magicians)
 		randomCard = randomCard1 + randomCard2
 		return randomCard
 
 
 	@staticmethod
-	def modifyMDMCards():
+	def modifyMDMCards(numCards, code):
 
 		magicians = 0
-		for i in range(4):
+		for i in range(numCards):
 			if (randint(0, 99) < 50):
 				magicians += 1
 
-		randomCard1 = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), 4-magicians)
+		randomCard1 = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), numCards-magicians)
 		randomCard2 = DraftHelper.randomFromList(Datas.objects.getMDMCustomFilter([(0x2, True, 'attribute')]), magicians)
 		randomCard = randomCard1 + randomCard2
 		return randomCard
@@ -1248,3 +1312,27 @@ class TokenPurchases():
 			(70046172, 2, True, False), #rush recklessly
 			 #Nothing at all, send 0 
 			])
+
+class DraftEffect():
+
+	effects = 9
+
+	@staticmethod
+	def getDraftEffects():
+		effArray = []
+		effArray.append((0, "No Effect"))
+		effArray.append((1, "If you pick this card, get 2 copies of it"))
+		effArray.append((2, "If you pick this card, draft 1 more main deck card"))
+		effArray.append((3, "If you pick this card, draft 3 more main deck cards"))
+		effArray.append((4, "If you pick this card, draft 2 less main deck cards"))
+		effArray.append((5, "If you pick this card, draft 1 more extra deck card"))
+		effArray.append((6, "If you pick this card, get 1 token"))
+		effArray.append((7, "If you pick this card, your next card draft has only 4 options"))
+		effArray.append((8, "If you pick this card, get 2 tokens"))
+		effArray.append((9, "If you pick this card, lose 1 token"))
+
+		return effArray
+
+	@staticmethod
+	def getRandom():
+		return randint(1, 9)

@@ -9,6 +9,8 @@ export class Draft {
 	public draftnum : number;
 	public tokenCost : number;
 	public imagePath ?: string;
+	public effect :number;
+	public effectString : Text;
 	constructor(jsonObject: any, imgPath: string){
 		this.id = jsonObject.card.id;
 
@@ -16,6 +18,8 @@ export class Draft {
 		this.text = new Text(jsonObject.text.name, jsonObject.text.desc);
 		this.draftnum = jsonObject.draftnum;
 		this.tokenCost = jsonObject.tokenCost;
+		this.effect = jsonObject.effect;
+		this.effectString = jsonObject.effectString;
 		this.imagePath = imgPath;
 	}
 }
