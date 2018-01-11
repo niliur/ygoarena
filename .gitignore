@@ -8,3 +8,5 @@ frontend/package\.json
 *.pyc
 
 root/ygo_card_info\.cdb
+
+frontend/src/app/changelog\.txt

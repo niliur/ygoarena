@@ -11,13 +11,12 @@ from django.db import models
 from django.utils import timezone
 import hashlib, time, datetime
 import struct
-import random
-from random import randint
-from abc import ABCMeta, abstractmethod
 import string
 import inspect
 from django.db.models import Max
 import math
+from random import * 
+import random
 
 def random_string(length):
     pool = string.ascii_letters + string.digits
@@ -30,7 +29,7 @@ class CFHelper(object):
 		# for card in cards:
 		# 	if (card.type & hval == bool):
 		# 		yield card
-		if((code & hval)):
+		if((code & hval) == hval):
 			return boolean
 		return not boolean
 
@@ -41,12 +40,14 @@ class CFHelper(object):
 		ret = True
 		for hval in hvalList:
 			target = getattr(code, hval[2])
-			if((target & hval[0])):
-				ret = ret and hval[1]
+			if((target & hval[0]) == hval[0]):
+				if(not hval[1]):
+					return False
 			else:
-				ret = ret and (not hval[1])
+				if(hval[1]):
+					return False;
 
-		return ret
+		return True
 	
 
 
@@ -146,7 +147,7 @@ class Datas(models.Model):
         db_table = 'datas'
 
     def __str__(self):
-    	return str(self.type)
+    	return 'type' + str(self.type) + 'setcode' + str(self.setcode)
 
     def get_card_id(self):
     	return self.id
@@ -256,9 +257,7 @@ class Deck(models.Model):
 			else:
 				pk = i.pk;
 
-			dETuple = (0, "")
-			if(random.random() < 0.1):
-					dETuple = DraftEffect.getDraftEffects()[DraftEffect.getRandom()]
+			dETuple = DraftEffect.getDraftEffects()[DraftController.generateDraftEffect(self.bonusid, self.characterid)]
 			Draft.objects.create(deck = self,text = Texts.objects.get(pk = pk), card = Datas.objects.get(pk = pk), draftnum = self.curDraftNum, mainDeck = mainDeck, extraDeck = not mainDeck, effect = dETuple[0], effectString = dETuple[1])
 		draftList = self.draft_set.filter(draftnum = self.curDraftNum)
 		return draftList
@@ -348,19 +347,6 @@ class Deck(models.Model):
 			return None
 
 
-		# #Draft section
-
-		# effArray = []
-		# effArray.append((0, "No Effect"))
-		# effArray.append((1, "If you pick this card, get 2 copies of it"))
-		# effArray.append((2, "If you pick this card, draft 1 more main deck card"))
-		# effArray.append((3, "If you pick this card, draft 3 more main deck cards"))
-		# effArray.append((4, "If you pick this card, draft 2 less main deck cards"))
-		# effArray.append((5, "If you pick this card, draft 1 more extra deck card"))
-		# effArray.append((6, "If you pick this card, get 1 token"))
-		# effArray.append((7, "If you pick this card, your next card draft has only 4 options"))
-		# effArray.append((8, "If you pick this card, get 2 tokens"))
-		# effArray.append((9, "If you pick this card, lose 1 token"))
 
 
 		drafts = self.draft_set.filter(draftnum = self.curDraftNum)
@@ -581,6 +567,32 @@ class DraftController:
 
 		return mainDeck, randomCard
 
+	@staticmethod
+	def generateDraftEffect(bonusid, characterid):
+
+		bonus = BonusGetter.BonusFactory(bonusid)
+		character = CharacterGetter.CharacterFactory(characterid)
+		code = None
+		if(bonus.chooseDraftOptionsPriority > 0):
+			code = bonus.getDraftEffect()
+		if(character.chooseDraftOptionsPriority > 0):
+			code = character.getDraftEffect(code)
+
+		if code is None:
+			if(random.random() < 0.1):
+				code = randint(1, 9)
+			else:
+				code = 0
+
+
+		if(bonus.alterDraftOptionsPriority > character.alterDraftOptionsPriority):
+			code = bonus.alterDraftOption(code)
+			code = character.alterDraftOption(code)
+		else:
+			code = character.alterDraftOption(code)
+			code = bonus.alterDraftOption(code)
+
+		return code
 
 
 
@@ -641,698 +653,13 @@ class DraftHelper(object):
 		return randomCard
 
 
-class Bonus:
-	__metaclass__ = ABCMeta
-	def __init__(self):
-
-
-		pass
-
-	@property
-	@abstractmethod
-	def nameString(self):
-		pass
-
-	@property
-	@abstractmethod
-	def descString(self):
-		pass
-
-	@property
-	@abstractmethod
-	def chooseCardPriority(self):
-		pass
-
-
-	@property
-	@abstractmethod
-	def chooseMDMPriority(self):
-		pass
-
-
-	@property
-	@abstractmethod
-	def chooseSTPriority(self):
-		pass
-
-	@property
-	@abstractmethod
-	def chooseEDMPriority(self):
-		pass
-
-	@property
-	@abstractmethod
-	def mainDeckSizePriority(self):
-		pass
-
-
-	@property
-	@abstractmethod
-	def extraDeckSizePriority(self):
-		pass
-
-
-
-
-
-	@staticmethod
-	@abstractmethod
-	def modifyMDMCards( card, code):
-		pass
-
-	@staticmethod
-	@abstractmethod
-	def modifySTCards( card, code):
-		pass
-		
-	@staticmethod
-	@abstractmethod
-	def modifyEDMCards( card, code):
-		pass
-
-
-	@staticmethod
-	@abstractmethod
-	def getMainStarterCards():
-		pass
-
-	@staticmethod
-	@abstractmethod
-	def getExtraStarterCards():
-		pass
-
-	@abstractmethod
-	def modifyDraft():
-		pass
-
-class BonusGetter:
-
-
-	@staticmethod
-	def BonusFactory(bonusid):
-		if bonusid == 0:
-			return ExodiaBonus()
-		if bonusid == 1:
-			return TeslaBonus()
-		if bonusid == 2:
-			return UBWBonus()
-		if bonusid == 3:
-			return LightBonus()
-		if bonusid == 4:
-			return DegenerateBonus()
-		if bonusid == 5:
-			return TributeBonus()
-		if bonusid == 6:
-			return TrapBonus()
-		if bonusid == 7:
-			return SanganBonus()
-		if bonusid == 8:
-			return LawnmowBonus()
-		else:
-			return DefaultBonus()
-
-class DefaultBonus(Bonus):
-	nameString = "Obliterate!"
-	descString = "You get 5 fucking pieces of exodia"
-	chooseCardPriority = -1
-	chooseEDMPriority = -1
-	chooseMDMPriority = -1
-	chooseSTPriority = -1
-	mainDeckSizePriority = -1
-	extraDeckSizePriority = -1
-
-	@staticmethod
-	def getMainStarterCards():
-		#Exodia pieces, Battle Fader, Factory of Mass production
-		return []
-
-	@staticmethod
-	def getExtraStarterCards():
-		return []
-
-
-	#1 to 4 ratio of extra to monster
-	@staticmethod	
-	def modifyDraft(mdsize, edsize, mdLimit, edLimit):
-		missingMain = max(0,mdLimit - mdsize)
-		missingExtra = max(0, edLimit - edsize)
-
-		if ((missingMain == 0) and (missingExtra == 0)):
-			ValueError("Should not generate")
-
-		if (missingExtra * 4 <= missingMain):
-			# return true for maindeck, false for extra deck
-			return True
-
-		else:
-			return False
-
-	@staticmethod
-	def modifyEDMCards(numCards, code):
-		rcard = Datas.objects.getExtraDeckMonsters()
-		#rcard = self.get_queryset()
-		randomCard = DraftHelper.randomFromList(rcard, numCards)
-		#randomCard = self.getEDM(6)
-		
-		return randomCard
-
-	@staticmethod
-	def modifyMDMCards(numCards, code):
-		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), numCards)
-		return randomCard
-
-	@staticmethod
-	def modifySTCards(numCards, code):
-		randomCard = DraftHelper.randomFromList(Datas.objects.getST(), numCards)
-		return randomCard
-
-
-
-	@staticmethod
-	def getMainDeckSize():
-		return None
-
-	@staticmethod
-	def getExtraDeckSize():
-		return None
-
-
-
-class ExodiaBonus(DefaultBonus):
-
-	@staticmethod
-	def getMainStarterCards():
-		#Exodia pieces, Battle Fader, Factory of Mass production
-		return [7902349,8124921,33396948,44519536,70903634, 90928333, 19665973]
-
-class TeslaBonus(DefaultBonus):
-
-	@staticmethod
-	def getMainStarterCards():
-		#raigeki, Cydra, limiter removal, twinbarrel
-		return [12580477, 70095155,23171610, 70050374]
-
-	@staticmethod
-	def getExtraStarterCards():
-		#Fortress dragon
-		return [79229522]
-
-class UBWBonus(DefaultBonus):
-
-	@staticmethod
-	def getMainStarterCards():
-		#Axe of fools, butterfly elma, cursed armaments, iron blacksmith
-		return [19578592, 69243953, 98867329, 73431236]
-
-	@staticmethod
-	def getExtraStarterCards():
-		#Powertool dragon
-		return [2403771]
-
-class LightBonus(DefaultBonus):
-	@staticmethod
-	def getMainStarterCards():
-		#honest, raiden, ryko, light, white dragon wyvernbuster
-		return [37742478, 77558536,21502796, 99234526]
-
-
-class DegenerateBonus(DefaultBonus):
-	@staticmethod
-	def getMainStarterCards():
-		# wavemotion, nightmare wheel, pot of greed, trap hole
-		return [38992735, 54704216,55144522, 4206964]
-
-
-
-class TributeBonus(DefaultBonus):
-	@staticmethod
-	def getMainStarterCards():
-		#5 and over club: 1 x Tribute burial, 1 x Dark Squire, Double summon
-		return [80230510, 79844764, 43422537]
-
-class TrapBonus(DefaultBonus):
-
-	chooseSTPriority = 1
-
-	@staticmethod
-	def getMainStarterCards():
-		#Powerful rebirth
-		return [84298614]
-
-	@staticmethod
-	def modifySTCards():
-		randomCard = DraftHelper.randomFromList(Datas.objects.getT(), 4)
-		return randomCard
-
-class SanganBonus(DefaultBonus):
-	@staticmethod
-	def getMainStarterCards():
-		#3x Sangan, tour guide
-		return [26202165, 26202165, 26202165, 10802915]
-
-	@staticmethod
-	def getExtraStarterCards():
-		#Alucard, wind up zenmaines
-		return [75367227, 78156759]
-
-class LawnmowBonus(DefaultBonus):
-
-	mainDeckSizePriority = 1
-	@staticmethod
-	def getMainStarterCards():
-		#3x lawnmowing, imp sabres, plaguespreader, electroturtle, shadoll beast
-		return [11110587, 11110587, 11110587, 30068120, 33420078,34710660,3717252]
-
-	@staticmethod
-	def getMainDeckSize(mds):
-		return 60
-
-	@staticmethod
-	def getExtraDeckSize(eds):
-		return 15
-
+from .bonus import *
 
 
 ### Character perks #####
 
 
+from .character import *
 
-class Character:
-	__metaclass__ = ABCMeta
-	def __init__(self):
-
-
-		pass
-
-	@property
-	@abstractmethod
-	def nameString(self):
-		pass
-
-	@property
-	@abstractmethod
-	def descString(self):
-		pass
-
-	@staticmethod
-	@abstractmethod
-	def modifyMDMCards( card, code):
-		pass
-
-	@staticmethod
-	@abstractmethod
-	def modifySTCards( card, code):
-		pass
-		
-	@staticmethod
-	@abstractmethod
-	def modifyEDMCards( card, code):
-		pass
-
-	@staticmethod
-	@abstractmethod
-	def getMainStarterCards():
-		pass
-
-	@staticmethod
-	@abstractmethod
-	def getExtraStarterCards():
-		pass
-
-	@abstractmethod
-	def modifyDraft():
-		pass
-
-class CharacterGetter:
-	@staticmethod
-	def CharacterFactory(characterid):
-		if characterid == 0:
-			return BCKaibaCharacter()
-
-		elif characterid == 1:
-			return OldKaibaCharacter()
-
-		elif characterid == 2:
-			return JoeyCharacter()
-
-		elif characterid == 3:
-			return YoungYugiCharacter()
-
-		elif characterid == 4:
-			return JadenCharacter()
-
-		elif characterid == 5:
-			return OldYugiCharacter()
-
-		elif characterid == 6:
-			return YumaCharacter()
-
-		elif characterid == 7:
-			return MakoCharacter()
-
-		elif characterid == 8:
-			return AkiCharacter()
-		else:
-			return DefaultCharacter()
-
-class DefaultCharacter(Character):
-	nameString = "Yugi"
-	descString = "Yung thug"
-
-	chooseCardPriority = -1
-	chooseEDMPriority = -1
-	chooseMDMPriority = -1
-	chooseSTPriority = -1
-	mainDeckSizePriority = -1
-	extraDeckSizePriority = -1
-
-	@staticmethod
-	def getMainStarterCards():
-		return []
-
-	@staticmethod
-	def getExtraStarterCards():
-		return []
-
-
-	@staticmethod
-	def modifyEDMCards(numCards, code):
-		rcard = Datas.objects.getExtraDeckMonsters()
-		#rcard = self.get_queryset()
-		randomCard = DraftHelper.randomFromList(rcard, numCards)
-		#randomCard = self.getEDM(6)
-		
-		return randomCard
-
-
-	@staticmethod
-	def modifyMDMCards(numCards, code):
-		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), numCards)
-		return randomCard
-
-	@staticmethod
-	def modifySTCards(numCards, code):
-		randomCard = DraftHelper.randomFromList(Datas.objects.getST(), numCards)
-		return randomCard
-
-	@staticmethod
-	def addToMDMCards():
-		return []
-
-	@staticmethod
-	def addToSTCards():
-		return []
-
-	@staticmethod
-	def addToEDMCards():
-		return []
-
-
-
-	#1 to 4 ratio of extra to monster
-	@staticmethod	
-	def modifyDraft(mdsize, edsize, mdLimit, edLimit):
-		missingMain = max(0,mdLimit - mdsize)
-		missingExtra = max(0, edLimit - edsize)
-
-		if ((missingMain == 0) and (missingExtra == 0)):
-			ValueError("Should not generate")
-
-		if (missingExtra * 4 <= missingMain):
-			# return true for maindeck, false for extra deck
-			return True
-
-		else:
-			return False
-	@staticmethod
-	def getMainDeckSize():
-		return None
-
-	@staticmethod
-	def getExtraDeckSize():
-		return None
-
-class BCKaibaCharacter(DefaultCharacter):
-
-	#Nigga in battle city
-	@staticmethod
-	def getMainStarterCards():
-		#Soul Exchange, obelisk the tormentor, enemy controller
-		return [68005187, 10000000, 98045062]
-
-
-class OldKaibaCharacter(DefaultCharacter):	
-
-	@staticmethod
-	def addToMDMCards():
-		# Always able to draft blueeyes
-		return [89631139]
-
-class JoeyCharacter(DefaultCharacter):
-	chooseMDMPriority = 1
-	@staticmethod
-	def getMainStarterCards():
-
-		#REBD, heart of the underdog, Ancient rules
-		return [74677422,35762283,10667321]
-
-		#During the draft, all normal monsters have > 1500 attack or > 1500 def
-	@staticmethod
-	def modifyMDMCards(num,code):
-
-		normal = lambda x: (x.type & 0x11 != 0x11) or (x.atk > 1500) or (x.def_field > 1500)
-
-
-		randomCard = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), num, normal)
-		return randomCard
-
-class YoungYugiCharacter(DefaultCharacter):
-
-	mainDeckSizePriority = 2
-	extraDeckSizePriority = 1
-
-	@staticmethod
-	def getMainStarterCards():
-
-		#Monster Reborn, Horn of heaven
-		return [83764718,98069388]
-
-	@staticmethod
-	def getMainDeckSize(mds):
-		return 24
-	
-	@staticmethod
-	def getExtraDeckSize(eds):
-		return 6
-
-class JadenCharacter(DefaultCharacter):
-	chooseEDMPriority = 0
-	@staticmethod
-	def getMainStarterCards():
-
-		#starting a hero lives, bubbleman, clayman, shadow mist:
-		return [8949584,79979666, 84327329, 50720316]
-
-	@staticmethod
-	def addToSTCards():
-		#adds a fucking mask change
-		return [21143940]
-
-	@staticmethod
-	def addToEDMCards():
-		#adds a fucking mask change 2
-		return[93600443]
-
-	@staticmethod
-	def modifyEDMCards(numCards, code):
-
-		#Chance to draft masked heroes
-
-		if(numCards <= 3):
-			numCardsNormal = 0
-			numCardsHeroes = numCards
-
-		else:
-			numCardsNormal = numCards - 3
-			numCardsHeroes = 3
-
-		normal = lambda x: (x.setcode & 0xA008 == 0xA008)
-
-
-		randomCard1 = DraftHelper.randomFromList(Datas.objects.getExtraDeckMonsters(), numCardsNormal)
-		randomCard2 = DraftHelper.randomFromList(Datas.objects.getCardsFromList([89870349,62624486, 59642500, 58481572, 58147549, 50608164, 29095552, 22093873, 10920352]), numCardsHeroes)
-		randomCard = randomCard1 + randomCard2
-		return randomCard
-
-class OldYugiCharacter(DefaultCharacter):
-	chooseMDMPriority = 0
-	chooseEDMPriority = 0
-
-	@staticmethod
-	def getMainStarterCards():
-
-		#starting eternal soul, dark magician, wonder wand
-		return [48680970,46986420, 67775894]
-
-
-
-	# 15% chance for a monster to be a spellcaster
-	@staticmethod
-	def modifyEDMCards(numCards, code):
-
-		magicians = 0
-		for i in range(numCards):
-			if (randint(0, 99) < 15):
-				magicians += 1
-
-		randomCard1 = DraftHelper.randomFromList(Datas.objects.getExtraDeckMonsters(), numCards-magicians)
-		randomCard2 = DraftHelper.randomFromList(Datas.objects.getEDMCustomFilter([(0x2, True, 'race')]), magicians)
-		randomCard = randomCard1 + randomCard2
-		return randomCard
-
-
-	@staticmethod
-	def modifyMDMCards(numCards, code):
-
-		magicians = 0
-		for i in range(numCards):
-			if (randint(0, 99) < 15):
-				magicians += 1
-
-		randomCard1 = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), numCards-magicians)
-		randomCard2 = DraftHelper.randomFromList(Datas.objects.getMDMCustomFilter([(0x2, True, 'race')]), magicians)
-		randomCard = randomCard1 + randomCard2
-		return randomCard
-
-class YumaCharacter(DefaultCharacter):
-	chooseCardPriority = 0
-	extraDeckSizePriority = 2
-
-	@staticmethod
-	def getExtraStarterCards():
-
-		#starting #39 Utopia
-		return [84013237]
-
-	@staticmethod
-	def getExtraDeckSize(eds):
-		return eds*2
-
-
-
-	# Double amount of extra deck monsters
-	#1 to 4 ratio of extra to monster
-	@staticmethod	
-	def modifyDraft(mdsize, edsize, mdLimit, edLimit):
-		missingMain = max(0,mdLimit - mdsize)
-		missingExtra = max(0, edLimit - edsize)
-
-		if ((missingMain == 0) and (missingExtra == 0)):
-			ValueError("Should not generate")
-
-		if (missingExtra * 2 <= missingMain):
-			# return true for maindeck, false for extra deck
-			return True
-
-		else:
-			return False
-
-class MakoCharacter(DefaultCharacter):
-	chooseMDMPriority = 0
-	chooseEDMPriority = 0
-
-
-
-	@staticmethod
-	def getMainStarterCards():
-
-		#starting Umi, umiruka, a legendary ocean
-		return [22702055,82999629, 295517]
-
-
-
-	# 50% chance for a monster to be water type
-	@staticmethod
-	def modifyEDMCards(numCards, code):
-
-		magicians = 0
-		for i in range(numCards):
-			if (randint(0, 99) < 50):
-				magicians += 1
-
-		randomCard1 = DraftHelper.randomFromList(Datas.objects.getExtraDeckMonsters(), numCards-magicians)
-		randomCard2 = DraftHelper.randomFromList(Datas.objects.getEDMCustomFilter([(0x2, True, 'attribute')]), magicians)
-		randomCard = randomCard1 + randomCard2
-		return randomCard
-
-
-	@staticmethod
-	def modifyMDMCards(numCards, code):
-
-		magicians = 0
-		for i in range(numCards):
-			if (randint(0, 99) < 50):
-				magicians += 1
-
-		randomCard1 = DraftHelper.randomFromList(Datas.objects.getMainDeckMonsters(), numCards-magicians)
-		randomCard2 = DraftHelper.randomFromList(Datas.objects.getMDMCustomFilter([(0x2, True, 'attribute')]), magicians)
-		randomCard = randomCard1 + randomCard2
-		return randomCard
-
-class AkiCharacter(DefaultCharacter):
-	@staticmethod
-	def getMainStarterCards():
-
-		#starting lonefire blossom, glow up bulb, blue rose dragon, gigaplant
-		return [48686504,67441435, 98884569, 53257892]
-
-	@staticmethod
-	def getExtraStarterCards():
-
-		#starting black rose dragon
-		return [73580471]
-
-
-class TokenPurchases():
-
-
-	@staticmethod
-	def getBuyables():
-		#Card id, token cost, maindeck, extradeck
-		return ([(4923662, 1, True, False), #Chaos burst
-			(56120475, 2, True, False),#Sakuretsu armor
-			(81510157, 3, True, False), #Soul taker
-			(51482758, 1, True, False), #remove trap
-			(5318639, 2, True, False), #mst
-			(43898403, 3, True, False), #twin twisters
-			(71587526, 3, True, False), #karma cut
-			(31222701, 1, True, False), #Wavering eyes
-			(55144522, 3, True, False), #pot of greed
-			(87979586, 3, True, False), #Angel trumpeter
-			(70046172, 2, True, False), #rush recklessly
-			 #Nothing at all, send 0 
-			])
-
-class DraftEffect():
-
-	effects = 9
-
-	@staticmethod
-	def getDraftEffects():
-		effArray = []
-		effArray.append((0, "No Effect"))
-		effArray.append((1, "If you pick this card, get 2 copies of it"))
-		effArray.append((2, "If you pick this card, draft 1 more main deck card"))
-		effArray.append((3, "If you pick this card, draft 3 more main deck cards"))
-		effArray.append((4, "If you pick this card, draft 2 less main deck cards"))
-		effArray.append((5, "If you pick this card, draft 1 more extra deck card"))
-		effArray.append((6, "If you pick this card, get 1 token"))
-		effArray.append((7, "If you pick this card, your next card draft has only 4 options"))
-		effArray.append((8, "If you pick this card, get 2 tokens"))
-		effArray.append((9, "If you pick this card, lose 1 token"))
-
-		return effArray
-
-	@staticmethod
-	def getRandom():
-		return randint(1, 9)
+from .drafteffect import *
+from .tokenpurchase import *

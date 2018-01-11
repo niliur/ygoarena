@@ -6,164 +6,196 @@
 
 
 
-  <ng-container *ngIf="deckModel && !deckModel.finished">
-    <p *ngIf="deckModel.draftFinished"> Your draft is finished, you can now spend your tokens on these tech cards or skip this by  <button (click) = "postNoPurchase()">clicking here</button></p>
+  <mat-tab-group class="tab-group" [dynamicHeight]="true">
+    <mat-tab label="Draft" class="tab-content">
+      <div>
+        <ng-container *ngIf="deckModel && !deckModel.finished">
+          <p *ngIf="deckModel.draftFinished"> Your draft is finished, you can now spend your tokens on these tech cards or skip this by  <button (click) = "postNoPurchase()">clicking here</button></p>
 
 
 
+          <div class="container-fluid">
 
-<!-- Fuck maintaining two of these, need to figure out how to set variables in template
-    <div class="container-fluid" *ngIf="drafting.length % 3 == 0">
+            <ng-container *ngFor="let item of createRange(drafting.length/4); let i = index">
+              <div class="row no-padding equal" >
+                <ng-container *ngFor="let item of createRange(4); let j = index">
+                  <div class="col-xs-3 no-padding border-black-solid"  *ngIf="drafting[4*i + j] !== undefined" (click) = "!draftSent ? postDraft(drafting[4*i+j].id) : true" >
+                    <div class="flex-container">
+                      <a>
+                        <img class="aspect-shrink" [src]="drafting[4*i + j].imagePath">
+                        <!-- <img class="aspect-shrink" src="/assets/cards/placeholder.png"> -->
+                      </a>
 
-      <ng-container  *ngFor="let item of createRange(drafting.length/3); let i = index">
-        <div class="row no-padding equal" >
-          <ng-container *ngFor="let item of createRange(3); let j = index">
-            <div class="col-xs-4 no-padding border-black-solid"  *ngIf="drafting[3*i + j] !== undefined" (click) = "!draftSent ? postDraft(drafting[3*i+j].id) : true" >
-              <div class="flex-container">
-                <a>
-                  <img class="aspect-shrink" [src]="drafting[3*i + j].imagePath">
-                </a>
+                      <table class="card-table">
+                        <tbody>
+                          <tr class="table-row">
+                            <th class="table-header">
+                              Name
+                            </th>
+                            <td>
+                              {{drafting[4*i+j].text.name}}
+                            </td>
+                          </tr>
+                          <tr class="table-row">
+                            <th class="table-header">
+                              Card Type
+                            </th>
+                            <td>
+                              {{drafting[4*i+j].card.typeString}}
+                            </td>
+                          </tr>
+                          <tr class="table-row" *ngIf="drafting[4*i+j].card.attributeString !== 0">
+                            <th class="table-header">
+                              Attribute
+                            </th>
+                            <td>
+                              {{drafting[4*i+j].card.attributeString}}
+                            </td>
+                          </tr>
 
-                <table class="card-table">
-                  <tbody>
-                    <tr class="table-row">
-                      <th class="table-header">
-                        Name
-                      </th>
-                      <td>
-                        {{drafting[3*i + j].text.name}}
-                      </td>
-                    </tr>
-                    <tr class="table-row">
-                      <th class="table-header">
-                        Card Type
-                      </th>
-                      <td>
-                        {{typeToText(drafting[3*i + j].card.type)}}
-                      </td>
-                    </tr>
-                    <tr class="table-row" *ngIf="attributeToText(drafting[3*i + j].card.attribute) !== 0">
-                      <th class="table-header">
-                        Attribute
-                      </th>
-                      <td>
-                        {{attributeToText(drafting[3*i + j].card.attribute)}}
-                      </td>
-                    </tr>
+                          <tr class="table-row red-bg" *ngIf="drafting[4*i+j].effect != 0">
+                            <th class="table-header" >
+                              Draft Bonus
+                            </th>
+                            <td>
+                              {{drafting[4*i+j].effectString}}
+                            </td>
 
-                    <tr class="table-row" *ngIf="drafting[3*i+j]">
 
-                    <tr>
-                      <td class="table-description" colspan="2">
-                        <strong>Description</strong>
-                        <br>
-                        {{drafting[3*i + j].text.desc}}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                          </tr>
 
+                          <tr class="table-row" *ngIf="drafting[4*i+j].tokenCost != 0">
+                            <th class="table-header">
+                              Token Cost
+                            </th>
+
+                            <td>
+                              {{drafting[4*i+j].tokenCost}}
+                            </td>
+                          </tr>
+
+
+                          <tr >
+                            <td class="table-description" colspan="2">
+                              <strong>Description</strong>
+                              <br>
+                              {{drafting[4*i+j].text.desc}}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                    </div>
+                  </div>
+                  <div class="col-xs-3" *ngIf="drafting[4*i+j] === undefined">
+                  </div>
+                </ng-container>
               </div>
-            </div>
-            <div class="col-xs-4" *ngIf="drafting[3*i + j] === undefined">
-            </div>
-          </ng-container>
+            </ng-container>
+          </div>
+        </ng-container>
+        <div *ngIf="deckModel">
+          <button *ngIf="deckModel.finished" (click)="download()">Download</button>
         </div>
-      </ng-container>
-    </div> -->
-
-    <div class="container-fluid">
-
-      <ng-container *ngFor="let item of createRange(drafting.length/4); let i = index">
-        <div class="row no-padding equal" >
-          <ng-container *ngFor="let item of createRange(4); let j = index">
-            <div class="col-xs-3 no-padding border-black-solid"  *ngIf="drafting[4*i + j] !== undefined" (click) = "!draftSent ? postDraft(drafting[4*i+j].id) : true" >
-              <div class="flex-container">
-                <a>
-                  <img class="aspect-shrink" [src]="drafting[4*i + j].imagePath">
-                  <!-- <img class="aspect-shrink" src="/assets/cards/placeholder.png"> -->
-                </a>
-
-                <table class="card-table">
-                  <tbody>
-                    <tr class="table-row">
-                      <th class="table-header">
-                        Name
-                      </th>
-                      <td>
-                        {{drafting[4*i+j].text.name}}
-                      </td>
-                    </tr>
-                    <tr class="table-row">
-                      <th class="table-header">
-                        Card Type
-                      </th>
-                      <td>
-                        {{typeToText(drafting[4*i+j].card.type)}}
-                      </td>
-                    </tr>
-                    <tr class="table-row" *ngIf="attributeToText(drafting[4*i+j].card.attribute) !== 0">
-                      <th class="table-header">
-                        Attribute
-                      </th>
-                      <td>
-                        {{attributeToText(drafting[4*i+j].card.attribute)}}
-                      </td>
-                    </tr>
-
-                    <tr class="table-row red-bg" *ngIf="drafting[4*i+j].effect != 0">
-                      <th class="table-header" >
-                        Draft Bonus
-                      </th>
-                      <td>
-                        {{drafting[4*i+j].effectString}}
-                      </td>
+      </div>
+    </mat-tab>
 
 
-                    </tr>
+    <mat-tab label="Deck">
+      <div  style="display:flex; width:100%">
+        <div *ngIf="deckModel" style="width: 20%; height: 100%; order: 99;">
 
-                    <tr class="table-row" *ngIf="drafting[4*i+j].tokenCost != 0">
-                      <th class="table-header">
-                        Token Cost
-                      </th>
+          <div id="card-preview" *ngIf="draftHovered !== undefined">
 
-                      <td>
-                        {{drafting[4*i+j].tokenCost}}
-                      </td>
-                    </tr>
+            <a>
+              <img class="aspect-shrink" [src]="draftHovered.imagePath">
+              <!-- <img class="aspect-shrink" src="/assets/cards/placeholder.png"> -->
+            </a>
 
+            <table class="card-table">
+              <tbody>
+                <tr class="table-row">
+                  <th class="table-header">
+                    Name
+                  </th>
+                  <td>
+                    {{draftHovered.text.name}}
+                  </td>
+                </tr>
+                <tr class="table-row">
+                  <th class="table-header">
+                    Card Type
+                  </th>
+                  <td>
+                    {{draftHovered.card.typeString}}
+                  </td>
+                </tr>
+                <tr class="table-row" *ngIf="draftHovered.card.attributeString !== 0">
+                  <th class="table-header">
+                    Attribute
+                  </th>
+                  <td>
+                    {{draftHovered.card.attributeString}}
+                  </td>
+                </tr>
 
-                    <tr >
-                      <td class="table-description" colspan="2">
-                        <strong>Description</strong>
-                        <br>
-                        {{drafting[4*i+j].text.desc}}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <tr class="table-row red-bg" *ngIf="draftHovered.effect != 0">
+                  <th class="table-header" >
+                    Draft Bonus
+                  </th>
+                  <td>
+                    {{draftHovered.effectString}}
+                  </td>
+                </tr>
 
+                <tr >
+                  <td class="table-description" colspan="2">
+                    <strong>Description</strong>
+                    <br>
+                    {{draftHovered.text.desc}}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+          </div>
+
+        </div>
+        <div style="width:80%; order: 0;">
+
+          <div class="button-row">
+            <span> Filter By: </span>
+            <button mat-raised-button class="button-sm-margin" (click) = "filter = 'ALL'; generateFilteredDrafted();" [disabled]="filter === 'ALL'">All</button>
+            <button mat-raised-button class="button-sm-margin" (click) = "filter = 'MDM'; generateFilteredDrafted();" [disabled]="filter === 'MDM'">Main Deck Monster</button>
+            <button mat-raised-button class="button-sm-margin" (click) = "filter = 'SPELL'; generateFilteredDrafted();" [disabled]="filter === 'SPELL'">Spell</button>
+            <button mat-raised-button class="button-sm-margin" (click) = "filter = 'TRAP'; generateFilteredDrafted();" [disabled]="filter === 'TRAP'">Trap</button>
+            <button mat-raised-button class="button-sm-margin" (click) = "filter = 'EDM'; generateFilteredDrafted();" [disabled]="filter === 'EDM'">Extra Deck Monster</button>
+          </div>
+          <div class="button-row">            
+            <span> Order By: </span>
+            <button mat-raised-button class="button-sm-margin" (click) = "order = 'DRAFT'; generateFilteredDrafted();" [disabled]="order === 'DRAFT'">Draft Order</button>
+            <button mat-raised-button class="button-sm-margin" (click) = "order = 'ALPHABETICAL'; generateFilteredDrafted();" [disabled]="order === 'ALPHABETICAL'">Alphabetical</button>
+          </div>
+
+          <div class="container-fluid" *ngIf="draftedFiltered !== undefined">
+            <ng-container *ngFor="let item of createRange(draftedFiltered.length/6); let i = index">
+              <div class="row no-padding equal" >
+                <ng-container *ngFor="let item of createRange(6); let j = index">
+                  <div class="col-xs-2 no-padding border-black-solid"  *ngIf="draftedFiltered[6*i + j] !== undefined" (mouseenter) = "loadHoverDraft(draftedFiltered[6*i+j])" (mouseleave) ="clearHoverDraft()">
+                    <a>
+                      <img class="aspect-shrink" [src]="draftedFiltered[6*i + j].imagePath">
+                      <!-- <img class="aspect-shrink" src="/assets/cards/placeholder.png"> -->
+                    </a>
+                  </div>
+                </ng-container>
               </div>
-            </div>
-            <div class="col-xs-3" *ngIf="drafting[4*i+j] === undefined">
-            </div>
-          </ng-container>
+            </ng-container>
+          </div>
+
+
         </div>
-      </ng-container>
-    </div>
-  </ng-container>
+      </div>
+    </mat-tab>
 
+  </mat-tab-group>
 
-  <div *ngIf="deckModel">
-    <button *ngIf="deckModel.finished" (click)="download()">Download</button>
-    <br>
-    <div *ngFor="let draft of drafted">
-       <p><strong>{{draft.text.name}} </strong></p> 
-       <p>{{draft.text.desc}}</p>
-
-    </div>
-  </div>
-
-
-
-<div>

@@ -45,3 +45,20 @@
 .red-bg{
   background-color: #ff0000;
 }
+
+.tab-group {
+  border: 1px solid #e8e8e8;
+}
+.tab-content {
+  border: 1px solid #e8e8e8;
+  background-color: #ff0000;
+}
+.button-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.button-sm-margin {
+  margin: 6px;
+}

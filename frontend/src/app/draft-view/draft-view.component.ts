@@ -4,20 +4,20 @@ import {FormBuilder, FormGroup, Validators} from '@angular/forms';
 import {Router, ActivatedRoute} from '@angular/router';
 import 'rxjs/add/operator/toPromise';
 
+
 import { Deck } from '../deck';
 import {Draft} from '../draft';
 import {Card} from '../card';
+import {CardType} from '../card-type.enum'
 import {Text} from '../text';
 
-
-
-import {MatTabsModule} from '@angular/material/tabs';
 
 
 
 
 
 import {AppSettings} from '../app-settings';
+
 
 @Component({
   selector: 'app-draft-view',
@@ -29,6 +29,17 @@ import {AppSettings} from '../app-settings';
 export class DraftViewComponent implements OnInit {
 
   private drafted : Draft[] = [];
+
+  private draftedMDM : Draft[] = undefined;
+  private draftedEDM : Draft[] = undefined;
+  private draftedSpell : Draft[] = undefined;
+  private draftedTrap : Draft[] = undefined;
+  private draftedFiltered : Draft[] = undefined;
+  private filter : string  = 'ALL';
+  private order : string = 'DRAFT';
+
+
+  private draftHovered : Draft = undefined;
 
 
   private drafting : Draft[] = [];
@@ -47,38 +58,83 @@ export class DraftViewComponent implements OnInit {
   private deckExists: boolean;
   private deckFinished : boolean;
 
-  private deckModel: Deck;
+  private deckModel: Deck = undefined;
 
   private draftSent : boolean = false;
   private finishedSent : boolean = false;
 
 
-  private sub : any;
+  private sub : any = undefined;
 
 
   constructor(private http : Http, private route: ActivatedRoute) {  }
 
-  private getDrafted(){
-      this.http
-      .get(`${this.loadurlstart}${this.deckCode}${this.loadDraft}`).toPromise()
-      .then(response => {
+  private generateFilteredDrafted(){
 
-        var deckdata = response.json();
-        var tmpDrafts : Draft[] = [];
-        for(let i = 0; i < deckdata.length; ++i){
-          var draft = new Draft(deckdata[i], undefined);
-          tmpDrafts.push(draft);
-
-        }
-        this.drafted = tmpDrafts;
-        this.loadDeckStatus = true;
-
-
-
-      }).catch(response =>{
-        this.loadDeckStatus = false;
-
+    if(this.order === 'DRAFT'){
+      this.drafted = this.drafted.sort((a,b)=> a.picknum - b.picknum);
+    }
+    else if(this.order === 'ALPHABETICAL'){
+      this.drafted = this.drafted.sort(function(a,b){
+        if (a.text.name < b.text.name){
+          return -1;
+        }else if(a.text.name == b.text.name){
+          return 0;
+        }else return 1;
       });
+    }
+
+    if(this.filter === 'ALL'){
+      this.draftedFiltered = this.drafted;
+    }
+    else if(this.filter === 'MDM'){
+      this.draftedMDM = this.drafted.filter(e=>e.card.typeEnum === CardType.MDM);
+      this.draftedFiltered = this.draftedMDM;
+    }
+    else if(this.filter === 'EDM'){
+      this.draftedFiltered = this.draftedEDM = this.drafted.filter(function(e, i, array){
+        return e.card.typeEnum === CardType.EDM;
+      });
+    }
+    else if(this.filter === 'SPELL'){
+      this.draftedFiltered = this.draftedSpell = this.drafted.filter(function(e, i, array){
+        return e.card.typeEnum === CardType.Spell;
+      });
+    }
+    else if(this.filter === 'TRAP'){
+      this.draftedFiltered = this.draftedTrap = this.drafted.filter(function(e, i, array){
+        return e.card.typeEnum === CardType.Trap;
+      });
+    }
+
+  }
+
+  private getDrafted(){
+    this.http
+    .get(`${this.loadurlstart}${this.deckCode}${this.loadDraft}`).toPromise()
+    .then(response => {
+
+      var deckdata = response.json();
+      var tmpDrafts : Draft[] = [];
+      for(let i = 0; i < deckdata.length; ++i){
+        var draft = new Draft(deckdata[i],`${this.cardAssetUrl}${deckdata[i].card.id}.png` );
+        tmpDrafts.push(draft);
+
+      }
+      this.drafted = tmpDrafts;
+      this.draftedMDM = undefined;
+      this.draftedEDM = undefined;
+      this.draftedSpell = undefined;
+      this.draftedTrap = undefined;
+      this.generateFilteredDrafted();
+      this.loadDeckStatus = true;
+
+
+
+    }).catch(response =>{
+      this.loadDeckStatus = false;
+
+    });
   }
 
   private onFinished(){
@@ -94,14 +150,14 @@ export class DraftViewComponent implements OnInit {
     var data = JSON.stringify(obj);
     var headers = new Headers({ 'Content-Type': 'application/json' });
     var options = new RequestOptions({ headers: headers });
-      this.http
-        .post(`${this.loadurlstart}${this.deckCode}${this.loadDrafting}`, data, options).toPromise()
-        .then(response => {
-          this.updateDeck();
-          this.draftSent = false;
-      }).catch(response =>{
-        this.draftSent = false;
-      });
+    this.http
+    .post(`${this.loadurlstart}${this.deckCode}${this.loadDrafting}`, data, options).toPromise()
+    .then(response => {
+      this.updateDeck();
+      this.draftSent = false;
+    }).catch(response =>{
+      this.draftSent = false;
+    });
   }
 
   private postNoPurchase(){
@@ -112,14 +168,14 @@ export class DraftViewComponent implements OnInit {
     var data = JSON.stringify(obj);
     var headers = new Headers({ 'Content-Type': 'application/json' });
     var options = new RequestOptions({ headers: headers });
-      this.http
-        .post(`${this.loadurlstart}${this.deckCode}${this.loadDrafting}`, data, options).toPromise()
-        .then(response => {
-          this.updateDeck();
-          this.draftSent = false;
-      }).catch(response =>{
-        this.draftSent = false;
-      });
+    this.http
+    .post(`${this.loadurlstart}${this.deckCode}${this.loadDrafting}`, data, options).toPromise()
+    .then(response => {
+      this.updateDeck();
+      this.draftSent = false;
+    }).catch(response =>{
+      this.draftSent = false;
+    });
 
   }
 
@@ -130,13 +186,13 @@ export class DraftViewComponent implements OnInit {
     var data = JSON.stringify(obj);
     var headers = new Headers({ 'Content-Type': 'application/json' });
     var options = new RequestOptions({ headers: headers });
-      this.http
-        .post(`${this.loadurlstart}${this.deckCode}${this.postFinish}`, data, options).toPromise()
-        .then(response => {
-          this.deckFinished = true;
-      }).catch(response =>{
-        this.finishedSent = false;
-      });
+    this.http
+    .post(`${this.loadurlstart}${this.deckCode}${this.postFinish}`, data, options).toPromise()
+    .then(response => {
+      this.deckFinished = true;
+    }).catch(response =>{
+      this.finishedSent = false;
+    });
   }
 
   private download(){
@@ -173,26 +229,34 @@ export class DraftViewComponent implements OnInit {
 
   private updateDeck(){
     this.http
-      .get(`${this.loadurlstart}${this.deckCode}${this.loadDeck}`).toPromise()
-      .then(response => {
-        this.deckExists = true;
+    .get(`${this.loadurlstart}${this.deckCode}${this.loadDeck}`).toPromise()
+    .then(response => {
+      this.deckExists = true;
 
-        var deckdata = response.json();
+      var deckdata = response.json();
 
-        this.deckModel = new Deck(deckdata);
-        this.deckFinished = deckdata.finished;
-        this.getDrafted();
-        if(!this.deckFinished){
-          this.getDrafting();
-        }
-        else{
-          this.onFinished();
-        }
+      this.deckModel = new Deck(deckdata);
+      this.deckFinished = deckdata.finished;
+      this.getDrafted();
+      if(!this.deckFinished){
+        this.getDrafting();
+      }
+      else{
+        this.onFinished();
+      }
 
-      }).catch(response =>{
-        this.deckExists = false;
+    }).catch(response =>{
+      this.deckExists = false;
 
-      });
+    });
+  }
+
+  private loadHoverDraft(draft : Draft){
+    this.draftHovered = draft;
+  }
+
+  private clearHoverDraft(){
+    this.draftHovered = undefined;
   }
 
 
@@ -204,7 +268,7 @@ export class DraftViewComponent implements OnInit {
 
 
          // In a real app: dispatch action to load the details here.
-      });
+       });
 
 
   }
@@ -218,47 +282,6 @@ export class DraftViewComponent implements OnInit {
     return items;
   }
 
-  typeToText(code){
-
-    if((code & 1) == 1){
-      return "Monster";
-    }
-    else if((code & 2) == 2){
-      return "Spell";
-    }else if((code & 4) == 4){
-      return "Trap";
-    }
-    return code;
-
-  }
-
-  attributeToText(code){
-    if(code === 0){
-      return 0;
-    }
-    else if((code&1) == 1){
-      return "Earth";
-    }
-    else if((code&2) == 2){
-      return "Water";
-    }
-    else if((code&4) == 4){
-      return "Fire";
-    }
-    else if((code&8) == 8){
-      return "Wind";
-    }
-    else if((code&16) == 16){
-      return "Light";
-    }
-    else if((code&32) == 32){
-      return "Dark";
-    }
-    else if((code&64) == 64){
-      return "Divine";
-    }
-
-    return "Something has gone wrong, please report this.";
-  }
+  
 
 }
