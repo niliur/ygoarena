@@ -5,7 +5,7 @@ cement==2.8.2
 click==6.6
 colorama==0.3.7
 decorator==4.0.10
-Django==1.11.7
+Django==1.11.29
 django-cors-headers==2.1.0
 django-utils2==2.4.0
 djangorestframework==3.7.3
